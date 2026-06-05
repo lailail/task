@@ -9,7 +9,11 @@ public enum ErrorCode {
     SYSTEM_ERROR(500, "system error"),
     USERNAME_ALREADY_EXISTS(1001, "username already exists"),
     INVALID_CREDENTIALS(1002, "invalid credentials"),
-    ACTIVITY_NOT_FOUND(2001, "activity not found");
+    ACTIVITY_NOT_FOUND(2001, "activity not found"),
+    SECKILL_ACTIVITY_NOT_FOUND(3001, "seckill activity not found"),
+    SECKILL_ACTIVITY_NOT_ON_SALE(3002, "seckill activity not on sale"),
+    SECKILL_DUPLICATE_REQUEST(3003, "duplicate seckill request"),
+    SECKILL_STOCK_NOT_ENOUGH(3004, "seckill stock not enough");
 
     private final int code;
     private final String message;

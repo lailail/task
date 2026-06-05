@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 订单服务启动类。
  * 当前负责启动后续异步下单链路所在的应用上下文。
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.example.ticket")
 public class OrderApplication {
 
     /**

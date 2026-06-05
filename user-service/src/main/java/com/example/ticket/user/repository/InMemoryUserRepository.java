@@ -1,6 +1,7 @@
 package com.example.ticket.user.repository;
 
 import com.example.ticket.user.domain.UserDO;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.Map;
@@ -13,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 这是 Phase 2 的过渡存储层，只用于稳定接口和测试结构，后续会替换为数据库实现。
  */
 @Repository
+@Profile("memory")
 public class InMemoryUserRepository implements UserRepository {
     private final AtomicLong idGenerator = new AtomicLong(1L);
     private final Map<String, UserDO> usersByUsername = new ConcurrentHashMap<>();

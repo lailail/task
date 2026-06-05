@@ -2,6 +2,7 @@ package com.example.ticket.ticket.repository;
 
 import com.example.ticket.ticket.dto.ActivityDTO;
 import com.example.ticket.ticket.support.TicketSampleData;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.Optional;
  * 这是 Phase 2 的演示数据仓储，示例活动数据已集中到独立支持类中，避免硬编码散落在查询逻辑里。
  */
 @Repository
+@Profile("memory")
 public class InMemoryTicketRepository implements TicketRepository {
     private final List<ActivityDTO> activities = TicketSampleData.buildActivities();
 
