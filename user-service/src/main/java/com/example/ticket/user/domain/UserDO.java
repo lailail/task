@@ -1,13 +1,21 @@
 package com.example.ticket.user.domain;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 /**
  * 用户持久化对象。
  * 当前用于承载用户基础信息与加密密码字段。
  */
+@TableName("ticket_user")
 public class UserDO {
+    @TableId(value = "user_id", type = IdType.AUTO)
     private Long userId;
     private String username;
     private String password;
+    @TableField("display_name")
     private String displayName;
 
     /**

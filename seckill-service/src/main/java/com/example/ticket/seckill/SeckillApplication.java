@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 抢票服务启动类。
  * 当前负责启动后续秒杀链路所在的应用上下文。
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.example.ticket")
 public class SeckillApplication {
 
     /**

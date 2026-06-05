@@ -1,19 +1,28 @@
 package com.example.ticket.user.controller;
 
-import com.example.ticket.user.repository.InMemoryUserRepository;
+import com.example.ticket.user.dto.UserDTO;
+import com.example.ticket.user.response.UserLoginResponse;
+import com.example.ticket.user.service.UserService;
 import com.example.ticket.user.support.UserSecurityConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * 用户控制器集成测试。
+ * 用于固定 HTTP 层的请求与响应契约，不让仓储实现变动影响控制层验证。
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 class UserControllerIntegrationTest {
@@ -21,14 +30,32 @@ class UserControllerIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private InMemoryUserRepository repository;
+    @MockBean
+    private UserService userService;
 
+    /**
+     * 初始化控制层测试使用的服务桩数据。
+     */
     @BeforeEach
     void setUp() {
-        repository.clear();
+        UserDTO user = new UserDTO();
+        user.setUserId(1L);
+        user.setUsername("alice");
+        user.setDisplayName("Alice");
+
+        UserLoginResponse loginResponse = new UserLoginResponse();
+        loginResponse.setUserId(1L);
+        loginResponse.setUsername("alice");
+        loginResponse.setDisplayName("Alice");
+        loginResponse.setAccessToken(UserSecurityConstants.DEMO_ACCESS_TOKEN_PREFIX + "demo-token");
+
+        when(userService.register(any())).thenReturn(user);
+        when(userService.login(any())).thenReturn(loginResponse);
     }
 
+    /**
+     * 注册接口应返回统一成功响应。
+     */
     @Test
     void should_register_user_via_http() throws Exception {
         mockMvc.perform(post("/api/v1/users/register")
@@ -46,18 +73,11 @@ class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.displayName").value("Alice"));
     }
 
+    /**
+     * 登录接口应返回统一成功响应和占位令牌。
+     */
     @Test
     void should_login_user_via_http() throws Exception {
-        mockMvc.perform(post("/api/v1/users/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {
-                          "username": "alice",
-                          "password": "password123",
-                          "displayName": "Alice"
-                        }
-                        """));
-
         mockMvc.perform(post("/api/v1/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -73,6 +93,9 @@ class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
     }
 
+    /**
+     * 当服务层抛出用户名重复错误时，应映射为稳定业务响应。
+     */
     @Test
     void should_return_business_error_when_username_exists() throws Exception {
         String payload = """
@@ -82,10 +105,9 @@ class UserControllerIntegrationTest {
                   "displayName": "Alice"
                 }
                 """;
-
-        mockMvc.perform(post("/api/v1/users/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(payload));
+        when(userService.register(any())).thenThrow(new com.example.ticket.common.error.BusinessException(
+                com.example.ticket.common.error.ErrorCode.USERNAME_ALREADY_EXISTS
+        ));
 
         mockMvc.perform(post("/api/v1/users/register")
                         .contentType(MediaType.APPLICATION_JSON)

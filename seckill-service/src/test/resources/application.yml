@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:seckill_service_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+ticket:
+  seckill:
+    stock-warm-up-enabled: false

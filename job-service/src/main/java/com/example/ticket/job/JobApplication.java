@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 定时任务服务启动类。
  * 当前负责启动后续超时关闭、补偿与回查所在的应用上下文。
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.example.ticket")
 public class JobApplication {
 
     /**
