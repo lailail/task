@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: seckill-service
+
+server:
+  port: 8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+

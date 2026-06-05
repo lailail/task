@@ -1,0 +1,31 @@
+.idea/
+.vscode/
+*.iml
+
+target/
+out/
+
+.mvn/wrapper/maven-wrapper.jar
+
+*.log
+logs/
+
+.DS_Store
+Thumbs.db
+
+# Private project guidance and local notes
+AGENTS.md
+AGNETS.md
+1.md
+doc/
+docs/
+
+# Common local secrets and credentials
+.env
+.env.*
+*.local
+*.secret
+*.key
+*.pem
+*.p12
+*.jks
