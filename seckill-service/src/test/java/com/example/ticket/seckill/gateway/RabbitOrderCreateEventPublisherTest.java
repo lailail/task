@@ -1,8 +1,8 @@
 package com.example.ticket.seckill.gateway;
 
-import com.example.ticket.seckill.event.OrderCreateRequestedEvent;
+import com.example.ticket.common.event.order.OrderCreateRequestedEvent;
+import com.example.ticket.common.event.order.OrderEventConstants;
 import com.example.ticket.seckill.gateway.impl.RabbitOrderCreateEventPublisher;
-import com.example.ticket.seckill.support.SeckillConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,8 +48,8 @@ class RabbitOrderCreateEventPublisherTest {
 
         ArgumentCaptor<OrderCreateRequestedEvent> eventCaptor = ArgumentCaptor.forClass(OrderCreateRequestedEvent.class);
         verify(rabbitTemplate).convertAndSend(
-                org.mockito.ArgumentMatchers.eq(SeckillConstants.ORDER_CREATE_EXCHANGE),
-                org.mockito.ArgumentMatchers.eq(SeckillConstants.ORDER_CREATE_ROUTING_KEY),
+                org.mockito.ArgumentMatchers.eq(OrderEventConstants.ORDER_CREATE_EXCHANGE),
+                org.mockito.ArgumentMatchers.eq(OrderEventConstants.ORDER_CREATE_ROUTING_KEY),
                 eventCaptor.capture()
         );
         assertEquals("reservation-001", eventCaptor.getValue().getReservationId());
@@ -64,7 +64,7 @@ class RabbitOrderCreateEventPublisherTest {
     private OrderCreateRequestedEvent buildEvent() {
         OrderCreateRequestedEvent event = new OrderCreateRequestedEvent();
         event.setEventId("event-001");
-        event.setEventType(SeckillConstants.ORDER_CREATE_EVENT_TYPE);
+        event.setEventType(OrderEventConstants.ORDER_CREATE_REQUESTED);
         event.setOccurredAt(Instant.parse("2026-06-05T11:00:00Z"));
         event.setRequestId("req-001");
         event.setIdempotencyKey("idem-001");
@@ -74,7 +74,7 @@ class RabbitOrderCreateEventPublisherTest {
         event.setUserId(10001L);
         event.setQuantity(1);
         event.setExpireAt(Instant.parse("2026-06-05T11:15:00Z"));
-        event.setSource(SeckillConstants.ORDER_CREATE_EVENT_SOURCE);
+        event.setSource(OrderEventConstants.SOURCE_SECKILL_SERVICE);
         return event;
     }
 }

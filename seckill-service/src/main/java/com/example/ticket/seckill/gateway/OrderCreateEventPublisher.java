@@ -1,6 +1,6 @@
 package com.example.ticket.seckill.gateway;
 
-import com.example.ticket.seckill.event.OrderCreateRequestedEvent;
+import com.example.ticket.common.event.order.OrderCreateRequestedEvent;
 
 /**
  * 下单事件发布网关。

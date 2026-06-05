@@ -25,6 +25,8 @@ public class OrderEventLogDO {
     private String consumeStatus;
     @TableField("retry_count")
     private Integer retryCount;
+    @TableField("last_error_message")
+    private String lastErrorMessage;
 
     /**
      * 获取事件主键。
@@ -150,5 +152,23 @@ public class OrderEventLogDO {
      */
     public void setRetryCount(Integer retryCount) {
         this.retryCount = retryCount;
+    }
+
+    /**
+     * 获取最后一次错误信息。
+     *
+     * @return 最后一次错误信息
+     */
+    public String getLastErrorMessage() {
+        return lastErrorMessage;
+    }
+
+    /**
+     * 设置最后一次错误信息。
+     *
+     * @param lastErrorMessage 最后一次错误信息
+     */
+    public void setLastErrorMessage(String lastErrorMessage) {
+        this.lastErrorMessage = lastErrorMessage;
     }
 }
