@@ -2,12 +2,14 @@ package com.example.ticket.seckill;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 抢票服务启动类。
  * 当前负责启动后续秒杀链路所在的应用上下文。
  */
 @SpringBootApplication(scanBasePackages = "com.example.ticket")
+@EnableScheduling
 public class SeckillApplication {
 
     /**

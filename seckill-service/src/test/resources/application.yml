@@ -1,4 +1,12 @@
 spring:
+  config:
+    import: "optional:nacos:${spring.application.name}.${spring.cloud.nacos.config.file-extension}"
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
   datasource:
     url: jdbc:h2:mem:seckill_service_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
     driver-class-name: org.h2.Driver
@@ -7,4 +15,9 @@ spring:
 
 ticket:
   seckill:
+    order-create-retry-enabled: false
+    order-create-max-retry-count: 20
+    order-create-retry-batch-size: 100
+    order-create-retry-interval-seconds: 30
+    order-create-retry-cron: 20/20 * * * * ?
     stock-warm-up-enabled: false

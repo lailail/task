@@ -10,6 +10,7 @@ import com.example.ticket.seckill.gateway.OrderCreateEventPublisher;
 import com.example.ticket.seckill.gateway.StockReservationGateway;
 import com.example.ticket.seckill.gateway.model.StockReserveCommand;
 import com.example.ticket.seckill.gateway.model.StockReserveResult;
+import com.example.ticket.seckill.repository.ReservationRecordRepository;
 import com.example.ticket.seckill.repository.SeckillActivityRepository;
 import com.example.ticket.seckill.request.SeckillReserveRequest;
 import com.example.ticket.seckill.response.SeckillReserveResponse;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class SeckillServiceImpl implements SeckillService {
     private final SeckillActivityRepository activityRepository;
     private final StockReservationGateway stockReservationGateway;
+    private final ReservationRecordRepository reservationRecordRepository;
     private final OrderCreateEventPublisher orderCreateEventPublisher;
     private final long reservationExpireSeconds;
 
@@ -37,17 +39,20 @@ public class SeckillServiceImpl implements SeckillService {
      *
      * @param activityRepository 抢票活动仓储
      * @param stockReservationGateway 库存预扣缓存网关
+     * @param reservationRecordRepository 预扣记录仓储
      * @param orderCreateEventPublisher 下单事件发布网关
      * @param reservationExpireSeconds 预扣过期秒数
      */
     public SeckillServiceImpl(
             SeckillActivityRepository activityRepository,
             StockReservationGateway stockReservationGateway,
+            ReservationRecordRepository reservationRecordRepository,
             OrderCreateEventPublisher orderCreateEventPublisher,
             @Value("${ticket.seckill.reservation-expire-seconds:900}") long reservationExpireSeconds
     ) {
         this.activityRepository = activityRepository;
         this.stockReservationGateway = stockReservationGateway;
+        this.reservationRecordRepository = reservationRecordRepository;
         this.orderCreateEventPublisher = orderCreateEventPublisher;
         this.reservationExpireSeconds = reservationExpireSeconds;
     }
@@ -77,6 +82,10 @@ public class SeckillServiceImpl implements SeckillService {
         reservation.setReservationId(reserveResult.getReservationId());
         reservation.setOccurredAt(reserveResult.getOccurredAt());
         reservation.setExpireAt(reserveResult.getExpireAt());
+
+        // 当前阶段先保证“没有正式预扣记录就不发下单消息”，避免订单成功后 job-service 无法确认预扣状态。
+        // 这里仍然存在 Redis 已预扣但数据库落库失败的一致性空窗，当前接受该过渡实现，并通过后续回查补偿继续收敛。
+        reservationRecordRepository.save(reservation);
         orderCreateEventPublisher.publish(buildOrderCreateEvent(reservation));
         return buildReserveResponse(reservation);
     }

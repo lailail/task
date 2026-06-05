@@ -2,7 +2,7 @@ package com.example.ticket.order.gateway.impl;
 
 import com.example.ticket.common.event.order.OrderCreateResultEvent;
 import com.example.ticket.common.event.order.OrderEventConstants;
-import com.example.ticket.order.gateway.OrderCreateResultEventPublisher;
+import com.example.ticket.order.gateway.OrderCreateResultMessageSender;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
  * 用于把订单创建成功或失败的结果异步通知给后续状态收敛处理方。
  */
 @Component
-public class RabbitOrderCreateResultEventPublisher implements OrderCreateResultEventPublisher {
+public class RabbitOrderCreateResultEventPublisher implements OrderCreateResultMessageSender {
     private final RabbitTemplate rabbitTemplate;
 
     /**
@@ -29,7 +29,7 @@ public class RabbitOrderCreateResultEventPublisher implements OrderCreateResultE
      * @param event 下单结果事件
      */
     @Override
-    public void publish(OrderCreateResultEvent event) {
+    public void send(OrderCreateResultEvent event) {
         rabbitTemplate.convertAndSend(
                 OrderEventConstants.ORDER_CREATE_EXCHANGE,
                 OrderEventConstants.ORDER_RESULT_ROUTING_KEY,

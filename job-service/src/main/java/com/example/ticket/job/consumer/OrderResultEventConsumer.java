@@ -2,24 +2,31 @@ package com.example.ticket.job.consumer;
 
 import com.example.ticket.common.event.order.OrderCreateResultEvent;
 import com.example.ticket.job.service.ReservationConfirmService;
+import com.example.ticket.job.service.ReservationReleaseTriggerService;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 /**
  * 订单结果事件消费者。
- * 用于接收订单服务发出的结果事件，并委托预扣确认服务推进状态收敛。
+ * 用于接收订单服务发出的建单结果，并分别委托成功确认与失败释放触发服务处理。
  */
 @Component
 public class OrderResultEventConsumer {
     private final ReservationConfirmService reservationConfirmService;
+    private final ReservationReleaseTriggerService reservationReleaseTriggerService;
 
     /**
      * 构造订单结果事件消费者。
      *
      * @param reservationConfirmService 预扣确认服务
+     * @param reservationReleaseTriggerService 预扣释放触发服务
      */
-    public OrderResultEventConsumer(ReservationConfirmService reservationConfirmService) {
+    public OrderResultEventConsumer(
+            ReservationConfirmService reservationConfirmService,
+            ReservationReleaseTriggerService reservationReleaseTriggerService
+    ) {
         this.reservationConfirmService = reservationConfirmService;
+        this.reservationReleaseTriggerService = reservationReleaseTriggerService;
     }
 
     /**
@@ -30,5 +37,6 @@ public class OrderResultEventConsumer {
     @RabbitListener(queues = "${ticket.job.mq.order-result-queue}")
     public void consume(OrderCreateResultEvent event) {
         reservationConfirmService.handleOrderCreateResult(event);
+        reservationReleaseTriggerService.handleOrderCreateResult(event);
     }
 }
