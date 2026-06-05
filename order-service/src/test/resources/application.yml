@@ -25,3 +25,4 @@ ticket:
     result-retry-cron: 10/20 * * * * ?
     mq:
       create-queue: ticket.order.create.queue
+      payment-result-queue: ticket.payment.result.queue

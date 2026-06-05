@@ -160,3 +160,13 @@ docker compose config
 - `docs/spec/phase6-observability.md`
 - `docs/spec/jwt-auth.md`
 - `docs/spec/post-v1-roadmap.md`
+
+## 2026-06-05 增量说明
+
+- 已新增 `payment-service` 模块。
+- 已补齐模拟支付结果落库、支付结果事件发布、订单主动取消和最小对账回查。
+- 当前支付域走最小闭环：
+  - `payment-service` 记录支付事实
+  - 发送 `ticket.payment.result`
+  - `order-service` 收敛到 `PAID` / `CANCELLED`
+  - 未收敛记录由对账任务重发支付结果事件
