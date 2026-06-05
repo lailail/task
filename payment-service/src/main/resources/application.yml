@@ -2,7 +2,7 @@ spring:
   config:
     import: "optional:nacos:${spring.application.name}.${spring.cloud.nacos.config.file-extension}"
   application:
-    name: order-service
+    name: payment-service
   cloud:
     nacos:
       discovery:
@@ -28,7 +28,7 @@ spring:
     password: ${TICKET_RABBITMQ_PASSWORD:ticket123}
 
 server:
-  port: 8084
+  port: 8087
 
 mybatis-plus:
   configuration:
@@ -47,12 +47,12 @@ management:
         http.server.requests: true
 
 ticket:
-  order:
+  payment:
     result-max-retry-count: 20
     result-retry-batch-size: 100
     result-retry-interval-seconds: 30
-    result-retry-cron: 10/20 * * * * ?
-    mq:
-      create-queue: ticket.order.create.queue
-      payment-result-queue: ticket.payment.result.queue
-
+    result-retry-cron: 12/20 * * * * ?
+    reconcile-batch-size: 100
+    reconcile-cron: 15/30 * * * * ?
+    order-service-base-url: ${TICKET_ORDER_SERVICE_BASE_URL:http://127.0.0.1:8084}
+    order-status-path: /api/v1/internal/orders/{orderId}/status

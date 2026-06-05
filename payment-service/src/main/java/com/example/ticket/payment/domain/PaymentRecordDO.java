@@ -1,4 +1,4 @@
-package com.example.ticket.order.domain;
+package com.example.ticket.payment.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -8,12 +8,16 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 
 /**
- * 订单持久化对象。
- * 用于映射 `ticket_order` 表，为后续异步下单和订单状态流转提供数据库事实载体。
+ * 支付记录持久化对象。
+ * 用于映射 `payment_record` 表，沉淀支付事实与对账状态。
  */
-@TableName("ticket_order")
-public class TicketOrderDO {
-    @TableId(value = "order_id", type = IdType.AUTO)
+@TableName("payment_record")
+public class PaymentRecordDO {
+    @TableId(value = "payment_id", type = IdType.AUTO)
+    private Long paymentId;
+    @TableField("payment_request_id")
+    private String paymentRequestId;
+    @TableField("order_id")
     private Long orderId;
     @TableField("order_no")
     private String orderNo;
@@ -21,8 +25,6 @@ public class TicketOrderDO {
     private String reservationId;
     @TableField("request_id")
     private String requestId;
-    @TableField("idempotency_key")
-    private String idempotencyKey;
     @TableField("user_id")
     private Long userId;
     @TableField("activity_id")
@@ -30,31 +32,65 @@ public class TicketOrderDO {
     @TableField("ticket_id")
     private Long ticketId;
     private Integer quantity;
-    @TableField("amount_cent")
-    private Integer amountCent;
-    @TableField("order_status")
-    private String orderStatus;
-    private String source;
-    @TableField("expire_at")
-    private LocalDateTime expireAt;
+    @TableField("payment_status")
+    private String paymentStatus;
+    @TableField("reconcile_status")
+    private String reconcileStatus;
+    private String reason;
     @TableField("paid_at")
     private LocalDateTime paidAt;
-    @TableField("closed_at")
-    private LocalDateTime closedAt;
+    @TableField("last_reconcile_at")
+    private LocalDateTime lastReconcileAt;
 
     /**
-     * 获取订单主键。
+     * 获取支付主键。
      *
-     * @return 订单主键
+     * @return 支付主键
+     */
+    public Long getPaymentId() {
+        return paymentId;
+    }
+
+    /**
+     * 设置支付主键。
+     *
+     * @param paymentId 支付主键
+     */
+    public void setPaymentId(Long paymentId) {
+        this.paymentId = paymentId;
+    }
+
+    /**
+     * 获取支付请求标识。
+     *
+     * @return 支付请求标识
+     */
+    public String getPaymentRequestId() {
+        return paymentRequestId;
+    }
+
+    /**
+     * 设置支付请求标识。
+     *
+     * @param paymentRequestId 支付请求标识
+     */
+    public void setPaymentRequestId(String paymentRequestId) {
+        this.paymentRequestId = paymentRequestId;
+    }
+
+    /**
+     * 获取订单标识。
+     *
+     * @return 订单标识
      */
     public Long getOrderId() {
         return orderId;
     }
 
     /**
-     * 设置订单主键。
+     * 设置订单标识。
      *
-     * @param orderId 订单主键
+     * @param orderId 订单标识
      */
     public void setOrderId(Long orderId) {
         this.orderId = orderId;
@@ -112,24 +148,6 @@ public class TicketOrderDO {
      */
     public void setRequestId(String requestId) {
         this.requestId = requestId;
-    }
-
-    /**
-     * 获取幂等键。
-     *
-     * @return 幂等键
-     */
-    public String getIdempotencyKey() {
-        return idempotencyKey;
-    }
-
-    /**
-     * 设置幂等键。
-     *
-     * @param idempotencyKey 幂等键
-     */
-    public void setIdempotencyKey(String idempotencyKey) {
-        this.idempotencyKey = idempotencyKey;
     }
 
     /**
@@ -205,75 +223,57 @@ public class TicketOrderDO {
     }
 
     /**
-     * 获取订单金额。
+     * 获取支付状态。
      *
-     * @return 订单金额
+     * @return 支付状态
      */
-    public Integer getAmountCent() {
-        return amountCent;
+    public String getPaymentStatus() {
+        return paymentStatus;
     }
 
     /**
-     * 设置订单金额。
+     * 设置支付状态。
      *
-     * @param amountCent 订单金额
+     * @param paymentStatus 支付状态
      */
-    public void setAmountCent(Integer amountCent) {
-        this.amountCent = amountCent;
+    public void setPaymentStatus(String paymentStatus) {
+        this.paymentStatus = paymentStatus;
     }
 
     /**
-     * 获取订单状态。
+     * 获取对账状态。
      *
-     * @return 订单状态
+     * @return 对账状态
      */
-    public String getOrderStatus() {
-        return orderStatus;
+    public String getReconcileStatus() {
+        return reconcileStatus;
     }
 
     /**
-     * 设置订单状态。
+     * 设置对账状态。
      *
-     * @param orderStatus 订单状态
+     * @param reconcileStatus 对账状态
      */
-    public void setOrderStatus(String orderStatus) {
-        this.orderStatus = orderStatus;
+    public void setReconcileStatus(String reconcileStatus) {
+        this.reconcileStatus = reconcileStatus;
     }
 
     /**
-     * 获取来源服务。
+     * 获取结果原因。
      *
-     * @return 来源服务
+     * @return 结果原因
      */
-    public String getSource() {
-        return source;
+    public String getReason() {
+        return reason;
     }
 
     /**
-     * 设置来源服务。
+     * 设置结果原因。
      *
-     * @param source 来源服务
+     * @param reason 结果原因
      */
-    public void setSource(String source) {
-        this.source = source;
-    }
-
-    /**
-     * 获取过期时间。
-     *
-     * @return 过期时间
-     */
-    public LocalDateTime getExpireAt() {
-        return expireAt;
-    }
-
-    /**
-     * 设置过期时间。
-     *
-     * @param expireAt 过期时间
-     */
-    public void setExpireAt(LocalDateTime expireAt) {
-        this.expireAt = expireAt;
+    public void setReason(String reason) {
+        this.reason = reason;
     }
 
     /**
@@ -295,20 +295,20 @@ public class TicketOrderDO {
     }
 
     /**
-     * 获取订单关闭时间。
+     * 获取最近一次对账时间。
      *
-     * @return 订单关闭时间
+     * @return 最近一次对账时间
      */
-    public LocalDateTime getClosedAt() {
-        return closedAt;
+    public LocalDateTime getLastReconcileAt() {
+        return lastReconcileAt;
     }
 
     /**
-     * 设置订单关闭时间。
+     * 设置最近一次对账时间。
      *
-     * @param closedAt 订单关闭时间
+     * @param lastReconcileAt 最近一次对账时间
      */
-    public void setClosedAt(LocalDateTime closedAt) {
-        this.closedAt = closedAt;
+    public void setLastReconcileAt(LocalDateTime lastReconcileAt) {
+        this.lastReconcileAt = lastReconcileAt;
     }
 }

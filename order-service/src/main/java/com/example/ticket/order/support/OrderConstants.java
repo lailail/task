@@ -9,6 +9,10 @@ import com.example.ticket.common.reliable.ReliableMessageTaskStatus;
  */
 public final class OrderConstants {
     public static final String ORDER_STATUS_CREATED = "CREATED";
+    public static final String ORDER_STATUS_PAID = "PAID";
+    public static final String ORDER_STATUS_CANCELLED = "CANCELLED";
+    public static final String ORDER_STATUS_CLOSED = "CLOSED";
+    public static final String ORDER_SOURCE_ORDER_SERVICE = "ORDER_SERVICE";
 
     public static final String EVENT_CONSUME_STATUS_SUCCESS = "SUCCESS";
     public static final String EVENT_CONSUME_STATUS_FAILED = "FAILED";
