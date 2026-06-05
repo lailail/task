@@ -40,5 +40,26 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+ticket:
+  security:
+    jwt:
+      issuer: ${TICKET_JWT_ISSUER:ticket-system}
+      secret: ${TICKET_JWT_SECRET:ticket-local-demo-jwt-secret-key-please-change}
+      access-token-expire-seconds: ${TICKET_JWT_ACCESS_EXPIRE_SECONDS:1800}
+      refresh-token-expire-seconds: ${TICKET_JWT_REFRESH_EXPIRE_SECONDS:604800}
+    gateway:
+      permit-paths:
+        - /api/v1/users/register
+        - /api/v1/users/login
+        - /api/v1/users/token/refresh
+        - /api/v1/activities/**
+        - /actuator/**
 

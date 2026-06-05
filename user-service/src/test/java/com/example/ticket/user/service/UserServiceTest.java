@@ -1,11 +1,17 @@
 package com.example.ticket.user.service;
 
+import com.example.ticket.common.auth.AuthenticatedUser;
+import com.example.ticket.common.auth.JwtTokenSupport;
+import com.example.ticket.common.auth.JwtTokenType;
+import com.example.ticket.common.auth.ParsedJwtToken;
 import com.example.ticket.common.error.BusinessException;
 import com.example.ticket.common.error.ErrorCode;
 import com.example.ticket.user.domain.UserDO;
 import com.example.ticket.user.dto.UserDTO;
+import com.example.ticket.user.repository.RefreshTokenStore;
 import com.example.ticket.user.repository.UserRepository;
 import com.example.ticket.user.request.UserLoginRequest;
+import com.example.ticket.user.request.UserRefreshTokenRequest;
 import com.example.ticket.user.request.UserRegisterRequest;
 import com.example.ticket.user.response.UserLoginResponse;
 import com.example.ticket.user.service.impl.UserServiceImpl;
@@ -35,6 +41,12 @@ class UserServiceTest {
     @Mock
     private UserRepository repository;
 
+    @Mock
+    private JwtTokenSupport jwtTokenSupport;
+
+    @Mock
+    private RefreshTokenStore refreshTokenStore;
+
     private UserService service;
 
     /**
@@ -43,7 +55,7 @@ class UserServiceTest {
      */
     @BeforeEach
     void setUp() {
-        service = new UserServiceImpl(repository, new BCryptPasswordEncoder());
+        service = new UserServiceImpl(repository, new BCryptPasswordEncoder(), jwtTokenSupport, refreshTokenStore);
     }
 
     /**
@@ -85,7 +97,7 @@ class UserServiceTest {
     }
 
     /**
-     * 凭证正确时，应返回占位登录结果。
+     * 凭证正确时，应返回正式 JWT 登录结果。
      */
     @Test
     void should_login_when_credentials_are_valid() {
@@ -93,13 +105,15 @@ class UserServiceTest {
         loginRequest.setUsername("alice");
         loginRequest.setPassword("password123");
         when(repository.findByUsername("alice")).thenReturn(Optional.of(buildEncodedUser("alice", "password123", "Alice")));
+        mockJwtIssue("access-token", "refresh-token");
 
         UserLoginResponse response = service.login(loginRequest);
 
         assertEquals("alice", response.getUsername());
         assertTrue(response.getUserId() > 0);
-        assertTrue(response.getAccessToken() != null && !response.getAccessToken().isBlank());
-        assertTrue(response.getAccessToken().startsWith(UserSecurityConstants.DEMO_ACCESS_TOKEN_PREFIX));
+        assertEquals("access-token", response.getAccessToken());
+        assertEquals("refresh-token", response.getRefreshToken());
+        assertEquals(UserSecurityConstants.TOKEN_TYPE, response.getTokenType());
     }
 
     /**
@@ -114,6 +128,38 @@ class UserServiceTest {
 
         BusinessException exception = assertThrows(BusinessException.class, () -> service.login(loginRequest));
         assertEquals(ErrorCode.INVALID_CREDENTIALS.getCode(), exception.getCode());
+    }
+
+    /**
+     * refresh token 合法且仍在存储中时，应返回新的登录结果。
+     */
+    @Test
+    void should_refresh_tokens_when_refresh_token_is_valid() {
+        UserRefreshTokenRequest request = new UserRefreshTokenRequest();
+        request.setRefreshToken("refresh-token");
+        when(repository.findById(1L)).thenReturn(Optional.of(buildEncodedUser("alice", "password123", "Alice")));
+        when(refreshTokenStore.exists(1L, "refresh-jti")).thenReturn(true);
+        when(jwtTokenSupport.parseToken("refresh-token")).thenReturn(buildParsedRefreshToken("refresh-jti"));
+        mockJwtIssue("new-access-token", "new-refresh-token");
+
+        UserLoginResponse response = service.refreshToken(request);
+
+        assertEquals("new-access-token", response.getAccessToken());
+        assertEquals("new-refresh-token", response.getRefreshToken());
+    }
+
+    /**
+     * refresh token 不在存储中时，应返回稳定错误。
+     */
+    @Test
+    void should_reject_refresh_when_refresh_token_is_not_stored() {
+        UserRefreshTokenRequest request = new UserRefreshTokenRequest();
+        request.setRefreshToken("refresh-token");
+        when(jwtTokenSupport.parseToken("refresh-token")).thenReturn(buildParsedRefreshToken("refresh-jti"));
+        when(refreshTokenStore.exists(1L, "refresh-jti")).thenReturn(false);
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> service.refreshToken(request));
+        assertEquals(ErrorCode.REFRESH_TOKEN_INVALID.getCode(), exception.getCode());
     }
 
     /**
@@ -143,5 +189,56 @@ class UserServiceTest {
      */
     private UserDO buildEncodedUser(String username, String rawPassword, String displayName) {
         return buildUser(username, new BCryptPasswordEncoder().encode(rawPassword), displayName);
+    }
+
+    /**
+     * 构造刷新令牌解析结果。
+     *
+     * @param tokenId 令牌唯一标识
+     * @return 解析结果
+     */
+    private ParsedJwtToken buildParsedRefreshToken(String tokenId) {
+        AuthenticatedUser authenticatedUser = new AuthenticatedUser();
+        authenticatedUser.setUserId(1L);
+        authenticatedUser.setUsername("alice");
+        authenticatedUser.setDisplayName("Alice");
+        authenticatedUser.setTokenId(tokenId);
+
+        ParsedJwtToken parsedJwtToken = new ParsedJwtToken();
+        parsedJwtToken.setAuthenticatedUser(authenticatedUser);
+        parsedJwtToken.setTokenType(JwtTokenType.REFRESH);
+        return parsedJwtToken;
+    }
+
+    /**
+     * 模拟 JWT 签发流程。
+     *
+     * @param accessToken 访问令牌
+     * @param refreshToken 刷新令牌
+     */
+    private void mockJwtIssue(String accessToken, String refreshToken) {
+        when(jwtTokenSupport.createAccessToken(any(AuthenticatedUser.class))).thenReturn(accessToken);
+        when(jwtTokenSupport.createRefreshToken(any(AuthenticatedUser.class))).thenReturn(refreshToken);
+        when(jwtTokenSupport.parseToken(accessToken)).thenReturn(buildParsedAccessToken("access-jti-issued"));
+        when(jwtTokenSupport.parseToken(refreshToken)).thenReturn(buildParsedRefreshToken("refresh-jti-issued"));
+    }
+
+    /**
+     * 构造访问令牌解析结果。
+     *
+     * @param tokenId 令牌唯一标识
+     * @return 解析结果
+     */
+    private ParsedJwtToken buildParsedAccessToken(String tokenId) {
+        AuthenticatedUser authenticatedUser = new AuthenticatedUser();
+        authenticatedUser.setUserId(1L);
+        authenticatedUser.setUsername("alice");
+        authenticatedUser.setDisplayName("Alice");
+        authenticatedUser.setTokenId(tokenId);
+
+        ParsedJwtToken parsedJwtToken = new ParsedJwtToken();
+        parsedJwtToken.setAuthenticatedUser(authenticatedUser);
+        parsedJwtToken.setTokenType(JwtTokenType.ACCESS);
+        return parsedJwtToken;
     }
 }

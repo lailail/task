@@ -1,5 +1,6 @@
 package com.example.ticket.seckill.controller;
 
+import com.example.ticket.common.auth.AuthHeaderConstants;
 import com.example.ticket.seckill.response.SeckillReserveResponse;
 import com.example.ticket.seckill.service.SeckillService;
 import com.example.ticket.seckill.support.SeckillConstants;
@@ -43,15 +44,18 @@ class SeckillControllerIntegrationTest {
         response.setStatus(SeckillConstants.RESERVATION_STATUS_RESERVED);
         response.setExpireAt(Instant.parse("2026-06-05T10:15:00Z"));
 
-        when(seckillService.reserve(any())).thenReturn(response);
+        // 控制器现在必须同时向服务层传递网关透传身份和抢票请求对象。
+        when(seckillService.reserve(any(), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/seckill/reservations")
+                        .header(AuthHeaderConstants.AUTHENTICATED_USER_ID, "10001")
+                        .header(AuthHeaderConstants.AUTHENTICATED_USERNAME, "alice")
+                        .header(AuthHeaderConstants.AUTHENTICATED_DISPLAY_NAME, "Alice")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "requestId": "req-001",
                                   "idempotencyKey": "idem-001",
-                                  "userId": 10001,
                                   "activityId": 1001,
                                   "ticketId": 501,
                                   "quantity": 1

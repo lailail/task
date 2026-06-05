@@ -1,5 +1,6 @@
 package com.example.ticket.seckill.service;
 
+import com.example.ticket.common.auth.AuthenticatedUser;
 import com.example.ticket.seckill.request.SeckillReserveRequest;
 import com.example.ticket.seckill.response.SeckillReserveResponse;
 
@@ -12,8 +13,9 @@ public interface SeckillService {
     /**
      * 执行抢票预扣。
      *
+     * @param authenticatedUser 已认证用户
      * @param request 抢票预扣请求
      * @return 预扣结果
      */
-    SeckillReserveResponse reserve(SeckillReserveRequest request);
+    SeckillReserveResponse reserve(AuthenticatedUser authenticatedUser, SeckillReserveRequest request);
 }

@@ -1,9 +1,9 @@
 package com.example.ticket.user.controller;
 
 import com.example.ticket.user.dto.UserDTO;
+import com.example.ticket.user.request.UserRefreshTokenRequest;
 import com.example.ticket.user.response.UserLoginResponse;
 import com.example.ticket.user.service.UserService;
-import com.example.ticket.user.support.UserSecurityConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,10 +47,13 @@ class UserControllerIntegrationTest {
         loginResponse.setUserId(1L);
         loginResponse.setUsername("alice");
         loginResponse.setDisplayName("Alice");
-        loginResponse.setAccessToken(UserSecurityConstants.DEMO_ACCESS_TOKEN_PREFIX + "demo-token");
+        loginResponse.setAccessToken("access-token");
+        loginResponse.setRefreshToken("refresh-token");
+        loginResponse.setTokenType("Bearer");
 
         when(userService.register(any())).thenReturn(user);
         when(userService.login(any())).thenReturn(loginResponse);
+        when(userService.refreshToken(any(UserRefreshTokenRequest.class))).thenReturn(loginResponse);
     }
 
     /**
@@ -74,7 +77,7 @@ class UserControllerIntegrationTest {
     }
 
     /**
-     * 登录接口应返回统一成功响应和占位令牌。
+     * 登录接口应返回统一成功响应和正式令牌。
      */
     @Test
     void should_login_user_via_http() throws Exception {
@@ -89,8 +92,27 @@ class UserControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.username").value("alice"))
-                .andExpect(jsonPath("$.data.accessToken").value(org.hamcrest.Matchers.startsWith(UserSecurityConstants.DEMO_ACCESS_TOKEN_PREFIX)))
-                .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
+                .andExpect(jsonPath("$.data.accessToken").value("access-token"))
+                .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"))
+                .andExpect(jsonPath("$.data.tokenType").value("Bearer"));
+    }
+
+    /**
+     * 刷新接口应返回统一成功响应和新令牌。
+     */
+    @Test
+    void should_refresh_token_via_http() throws Exception {
+        mockMvc.perform(post("/api/v1/users/token/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "refreshToken": "refresh-token"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.accessToken").value("access-token"))
+                .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"));
     }
 
     /**

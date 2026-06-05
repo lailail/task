@@ -1,5 +1,6 @@
 package com.example.ticket.seckill.service;
 
+import com.example.ticket.common.auth.AuthenticatedUser;
 import com.example.ticket.common.error.BusinessException;
 import com.example.ticket.common.error.ErrorCode;
 import com.example.ticket.common.event.order.OrderCreateRequestedEvent;
@@ -75,6 +76,7 @@ class SeckillServiceTest {
      */
     @Test
     void should_persist_reservation_and_publish_order_event_when_request_is_valid() {
+        AuthenticatedUser authenticatedUser = buildAuthenticatedUser();
         SeckillReserveRequest request = buildRequest();
         SeckillActivityDTO activity = buildActivity(SeckillConstants.SALE_STATUS_ON_SALE);
         StockReserveResult result = StockReserveResult.success(
@@ -87,7 +89,7 @@ class SeckillServiceTest {
                 .thenReturn(Optional.of(activity));
         when(stockReservationGateway.reserve(any(StockReserveCommand.class))).thenReturn(result);
 
-        SeckillReserveResponse response = seckillService.reserve(request);
+        SeckillReserveResponse response = seckillService.reserve(authenticatedUser, request);
 
         assertEquals("reservation-001", response.getReservationId());
         assertEquals(SeckillConstants.RESERVATION_STATUS_RESERVED, response.getStatus());
@@ -107,11 +109,13 @@ class SeckillServiceTest {
      */
     @Test
     void should_throw_when_activity_is_missing() {
+        AuthenticatedUser authenticatedUser = buildAuthenticatedUser();
         SeckillReserveRequest request = buildRequest();
         when(activityRepository.findByActivityIdAndTicketId(request.getActivityId(), request.getTicketId()))
                 .thenReturn(Optional.empty());
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> seckillService.reserve(request));
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> seckillService.reserve(authenticatedUser, request));
 
         assertEquals(ErrorCode.SECKILL_ACTIVITY_NOT_FOUND.getCode(), exception.getCode());
         verify(stockReservationGateway, never()).reserve(any());
@@ -123,11 +127,13 @@ class SeckillServiceTest {
      */
     @Test
     void should_throw_when_activity_is_not_on_sale() {
+        AuthenticatedUser authenticatedUser = buildAuthenticatedUser();
         SeckillReserveRequest request = buildRequest();
         when(activityRepository.findByActivityIdAndTicketId(request.getActivityId(), request.getTicketId()))
                 .thenReturn(Optional.of(buildActivity(SeckillConstants.SALE_STATUS_COMING_SOON)));
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> seckillService.reserve(request));
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> seckillService.reserve(authenticatedUser, request));
 
         assertEquals(ErrorCode.SECKILL_ACTIVITY_NOT_ON_SALE.getCode(), exception.getCode());
         verify(stockReservationGateway, never()).reserve(any());
@@ -139,13 +145,15 @@ class SeckillServiceTest {
      */
     @Test
     void should_throw_when_reserve_result_is_not_success() {
+        AuthenticatedUser authenticatedUser = buildAuthenticatedUser();
         SeckillReserveRequest request = buildRequest();
         when(activityRepository.findByActivityIdAndTicketId(request.getActivityId(), request.getTicketId()))
                 .thenReturn(Optional.of(buildActivity(SeckillConstants.SALE_STATUS_ON_SALE)));
         when(stockReservationGateway.reserve(any(StockReserveCommand.class)))
                 .thenReturn(StockReserveResult.failure(SeckillConstants.RESERVE_RESULT_DUPLICATE, null));
 
-        BusinessException exception = assertThrows(BusinessException.class, () -> seckillService.reserve(request));
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> seckillService.reserve(authenticatedUser, request));
 
         assertEquals(ErrorCode.SECKILL_DUPLICATE_REQUEST.getCode(), exception.getCode());
         verify(reservationRecordRepository, never()).save(any());
@@ -157,6 +165,7 @@ class SeckillServiceTest {
      */
     @Test
     void should_not_publish_order_event_when_reservation_record_save_fails() {
+        AuthenticatedUser authenticatedUser = buildAuthenticatedUser();
         SeckillReserveRequest request = buildRequest();
         SeckillActivityDTO activity = buildActivity(SeckillConstants.SALE_STATUS_ON_SALE);
         StockReserveResult result = StockReserveResult.success(
@@ -169,7 +178,7 @@ class SeckillServiceTest {
         when(stockReservationGateway.reserve(any(StockReserveCommand.class))).thenReturn(result);
         doThrow(new IllegalStateException("save failed")).when(reservationRecordRepository).save(any());
 
-        assertThrows(IllegalStateException.class, () -> seckillService.reserve(request));
+        assertThrows(IllegalStateException.class, () -> seckillService.reserve(authenticatedUser, request));
 
         verify(reservationRecordRepository).save(any());
         verify(orderCreateEventPublisher, never()).publish(any());
@@ -182,13 +191,27 @@ class SeckillServiceTest {
      */
     private SeckillReserveRequest buildRequest() {
         SeckillReserveRequest request = new SeckillReserveRequest();
-        request.setUserId(10001L);
         request.setActivityId(1001L);
         request.setTicketId(501L);
         request.setQuantity(1);
         request.setIdempotencyKey("idem-001");
         request.setRequestId("req-001");
         return request;
+    }
+
+    /**
+     * 构造网关验签后的认证用户。
+     * 抢票服务不再信任前端直传 userId，单元测试也必须走同一身份来源。
+     *
+     * @return 认证用户对象
+     */
+    private AuthenticatedUser buildAuthenticatedUser() {
+        AuthenticatedUser authenticatedUser = new AuthenticatedUser();
+        authenticatedUser.setUserId(10001L);
+        authenticatedUser.setUsername("alice");
+        authenticatedUser.setDisplayName("Alice");
+        authenticatedUser.setTokenId("token-001");
+        return authenticatedUser;
     }
 
     /**

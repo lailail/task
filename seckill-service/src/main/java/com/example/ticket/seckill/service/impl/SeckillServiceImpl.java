@@ -1,5 +1,6 @@
 package com.example.ticket.seckill.service.impl;
 
+import com.example.ticket.common.auth.AuthenticatedUser;
 import com.example.ticket.common.error.BusinessException;
 import com.example.ticket.common.error.ErrorCode;
 import com.example.ticket.common.event.order.OrderCreateRequestedEvent;
@@ -60,11 +61,12 @@ public class SeckillServiceImpl implements SeckillService {
     /**
      * 执行抢票预扣。
      *
+     * @param authenticatedUser 已认证用户
      * @param request 抢票预扣请求
      * @return 预扣结果
      */
     @Override
-    public SeckillReserveResponse reserve(SeckillReserveRequest request) {
+    public SeckillReserveResponse reserve(AuthenticatedUser authenticatedUser, SeckillReserveRequest request) {
         SeckillActivityDTO activity = activityRepository.findByActivityIdAndTicketId(request.getActivityId(), request.getTicketId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SECKILL_ACTIVITY_NOT_FOUND));
 
@@ -72,7 +74,7 @@ public class SeckillServiceImpl implements SeckillService {
             throw new BusinessException(ErrorCode.SECKILL_ACTIVITY_NOT_ON_SALE);
         }
 
-        ReservationDO reservation = buildReservation(request);
+        ReservationDO reservation = buildReservation(authenticatedUser, request);
         StockReserveResult reserveResult = stockReservationGateway.reserve(buildStockReserveCommand(reservation));
         if (!SeckillConstants.RESERVE_RESULT_SUCCESS.equals(reserveResult.getResultCode())) {
             throw mapReserveException(reserveResult);
@@ -93,13 +95,14 @@ public class SeckillServiceImpl implements SeckillService {
     /**
      * 构造预扣记录。
      *
+     * @param authenticatedUser 已认证用户
      * @param request 抢票请求
      * @return 预扣记录
      */
-    private ReservationDO buildReservation(SeckillReserveRequest request) {
+    private ReservationDO buildReservation(AuthenticatedUser authenticatedUser, SeckillReserveRequest request) {
         ReservationDO reservation = new ReservationDO();
         reservation.setReservationId(UUID.randomUUID().toString());
-        reservation.setUserId(request.getUserId());
+        reservation.setUserId(authenticatedUser.getUserId());
         reservation.setActivityId(request.getActivityId());
         reservation.setTicketId(request.getTicketId());
         reservation.setQuantity(request.getQuantity());

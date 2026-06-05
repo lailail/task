@@ -38,6 +38,17 @@ public class DatabaseUserRepository implements UserRepository {
     }
 
     /**
+     * 按用户主键查询用户。
+     *
+     * @param userId 用户主键
+     * @return 查询结果
+     */
+    @Override
+    public Optional<UserDO> findById(Long userId) {
+        return Optional.ofNullable(userMapper.selectById(userId));
+    }
+
+    /**
      * 保存用户数据。
      *
      * @param user 用户持久化对象

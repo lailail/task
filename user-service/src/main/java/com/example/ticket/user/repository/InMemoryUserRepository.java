@@ -31,6 +31,19 @@ public class InMemoryUserRepository implements UserRepository {
     }
 
     /**
+     * 按用户主键从内存仓储中查询用户。
+     *
+     * @param userId 用户主键
+     * @return 查询结果
+     */
+    @Override
+    public Optional<UserDO> findById(Long userId) {
+        return usersByUsername.values().stream()
+                .filter(user -> userId.equals(user.getUserId()))
+                .findFirst();
+    }
+
+    /**
      * 保存用户到内存仓储。
      *
      * @param user 用户持久化对象

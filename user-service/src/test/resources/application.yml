@@ -12,3 +12,16 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      timeout: 1000ms
+
+ticket:
+  security:
+    jwt:
+      issuer: ticket-system-test
+      secret: ticket-local-demo-jwt-secret-key-please-change
+      access-token-expire-seconds: 1800
+      refresh-token-expire-seconds: 604800

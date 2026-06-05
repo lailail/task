@@ -1,6 +1,9 @@
 package com.example.ticket.seckill.controller;
 
+import com.example.ticket.common.auth.AuthenticatedUser;
 import com.example.ticket.common.response.ApiResponse;
+import com.example.ticket.common.web.AuthenticatedUserHeaderSupport;
+import jakarta.servlet.http.HttpServletRequest;
 import com.example.ticket.seckill.request.SeckillReserveRequest;
 import com.example.ticket.seckill.response.SeckillReserveResponse;
 import com.example.ticket.seckill.service.SeckillService;
@@ -31,11 +34,16 @@ public class SeckillController {
     /**
      * 执行抢票预扣。
      *
+     * @param httpServletRequest HTTP 请求
      * @param request 抢票预扣请求
      * @return 预扣响应
      */
     @PostMapping
-    public ApiResponse<SeckillReserveResponse> reserve(@Valid @RequestBody SeckillReserveRequest request) {
-        return ApiResponse.success(seckillService.reserve(request));
+    public ApiResponse<SeckillReserveResponse> reserve(
+            HttpServletRequest httpServletRequest,
+            @Valid @RequestBody SeckillReserveRequest request
+    ) {
+        AuthenticatedUser authenticatedUser = AuthenticatedUserHeaderSupport.extractAuthenticatedUser(httpServletRequest);
+        return ApiResponse.success(seckillService.reserve(authenticatedUser, request));
     }
 }

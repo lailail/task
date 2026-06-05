@@ -25,6 +25,11 @@
 - `Phase 5` 下单结果消息级补偿重试能力
 - `Phase 5` 抢票侧下单请求消息级补偿重试能力
 - `Phase 5` 可靠消息公共模板抽象收敛
+- `Phase 6` Micrometer 指标暴露
+- `Phase 6` Prometheus + Grafana 本地观测编排
+- `Phase 6` 本地 baseline 压测脚本与首轮基线报告
+- JWT `accessToken + refreshToken` 正式登录链路
+- `gateway-service` 统一 JWT 验签与认证身份透传
 
 当前已具备的关键能力：
 
@@ -51,6 +56,8 @@
 - `Redis 7`
 - `RabbitMQ`
 - `Nacos`（可选治理组件）
+- `Prometheus`（可选观测组件）
+- `Grafana`（可选观测组件）
 
 相关文件：
 
@@ -82,6 +89,12 @@ docker compose up -d
 docker compose --profile governance up -d
 ```
 
+4. 如果需要一起启动观测组件：
+
+```bash
+docker compose --profile observability up -d
+```
+
 5. 如果需要让服务真正接入 `Nacos`，还要额外打开下面两个开关：
 
 ```bash
@@ -108,11 +121,16 @@ docker compose config
 - 当前 `seckill-service` 已在 Redis 预扣成功后把 `stock_reservation_record` 正式落库，再发送下单事件，`job-service` 可继续把记录推进到 `CONFIRMED`
 - 当前库存释放事件和下单结果事件都已具备消息级补偿重试，并已统一为代码层可靠消息模板
 - 当前 `seckill-service` 侧的下单请求事件也已接入消息级补偿重试，并统一为代码层可靠消息模板
+- 当前 `user-service` 已改为签发真实 JWT，登录响应同时返回 `accessToken`、`refreshToken`、过期时间与 `tokenType`
+- 当前 `gateway-service` 已承担统一认证入口职责，支持匿名白名单、JWT 验签、清洗伪造身份头并向下游透传认证身份
+- 当前 `seckill-service` 已改为只信任网关透传身份，抢票请求体不再接受前端直传 `userId`
 - 当前仍保留 `stock_release_task` 与 `order_result_task` 两张物理任务表，暂未合并为统一消息表或事务外盒
 - 当前已补齐 `Nacos` 的本地容器、地址变量、服务侧配置入口以及 `Nacos Discovery/Config` Starter
 - 当前默认仍通过 `TICKET_NACOS_DISCOVERY_ENABLED=false`、`TICKET_NACOS_CONFIG_ENABLED=false` 关闭治理能力，避免影响现有主链路
 - 当前已验证 `gateway-service`、`user-service`、`ticket-service` 可注册到 `Nacos`
 - 当前已验证 `gateway-service` 可通过 `lb://ticket-service` 路由转发 `/api/v1/activities`
+- 当前已验证 `gateway-service`、`user-service`、`ticket-service`、`seckill-service`、`order-service`、`job-service` 均暴露 `/actuator/prometheus`
+- 当前已验证 `Prometheus` 可抓取六个核心服务指标，`Grafana` 可加载默认总览看板
 - `Elasticsearch` 暂未进入 v1 主链路，不在当前最小部署范围内
 
 补充说明：
@@ -120,6 +138,7 @@ docker compose config
 - 当前所有服务统一通过 `optional:nacos:${spring.application.name}.${spring.cloud.nacos.config.file-extension}` 导入配置中心，显式打开 `Nacos Config` 时不会再因空 `dataId` 启动失败。
 - 当前 `order-service`、`job-service` 所依赖的 RabbitMQ 队列和交换机已由应用启动时自动声明，不再依赖手工预建。
 - 如果本地 MySQL 容器是在新增 `030_stock_release_task.sql`、`040_order_result_task.sql` 之前初始化的，需要手工补执行这两个 SQL 文件或重建数据卷，否则补偿调度器会因为任务表缺失持续报错。
+- 首轮 `Phase 6` baseline 已输出到 `docs/reports/phase6-baseline-output.json` 与 `docs/reports/2026-06-05-phase6-baseline.md`。
 
 ## 常用验证命令
 
@@ -138,3 +157,6 @@ docker compose config
 - `docs/spec/architecture.md`
 - `docs/spec/constraints.md`
 - `docs/spec/known-issues.md`
+- `docs/spec/phase6-observability.md`
+- `docs/spec/jwt-auth.md`
+- `docs/spec/post-v1-roadmap.md`
