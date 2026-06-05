@@ -1,4 +1,12 @@
 spring:
+  config:
+    import: "optional:nacos:${spring.application.name}.${spring.cloud.nacos.config.file-extension}"
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
   datasource:
     url: jdbc:h2:mem:job_service_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
     driver-class-name: org.h2.Driver
@@ -11,5 +19,17 @@ spring:
 
 ticket:
   job:
+    order-timeout-close-batch-size: 100
+    order-timeout-close-cron: 0/10 * * * * ?
+    reservation-recheck-batch-size: 100
+    reservation-recheck-cron: 15/30 * * * * ?
+    stock-release-max-retry-count: 20
+    stock-release-retry-batch-size: 100
+    stock-release-retry-interval-seconds: 30
+    stock-release-retry-cron: 5/20 * * * * ?
+    stock-release-idempotent-seconds: 86400
     mq:
       order-result-queue: ticket.order.result.queue
+      stock-release-queue: ticket.stock.release.queue
+    lua:
+      release-script-location: classpath:lua/job/release-stock.lua

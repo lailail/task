@@ -8,6 +8,7 @@ import com.example.ticket.seckill.gateway.OrderCreateEventPublisher;
 import com.example.ticket.seckill.gateway.StockReservationGateway;
 import com.example.ticket.seckill.gateway.model.StockReserveCommand;
 import com.example.ticket.seckill.gateway.model.StockReserveResult;
+import com.example.ticket.seckill.repository.ReservationRecordRepository;
 import com.example.ticket.seckill.repository.SeckillActivityRepository;
 import com.example.ticket.seckill.request.SeckillReserveRequest;
 import com.example.ticket.seckill.response.SeckillReserveResponse;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,6 +28,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +50,9 @@ class SeckillServiceTest {
     @Mock
     private OrderCreateEventPublisher orderCreateEventPublisher;
 
+    @Mock
+    private ReservationRecordRepository reservationRecordRepository;
+
     private SeckillServiceImpl seckillService;
 
     /**
@@ -57,16 +64,17 @@ class SeckillServiceTest {
         seckillService = new SeckillServiceImpl(
                 activityRepository,
                 stockReservationGateway,
+                reservationRecordRepository,
                 orderCreateEventPublisher,
                 900L
         );
     }
 
     /**
-     * 成功预扣库存后，应返回预扣结果并发送下单事件。
+     * 成功预扣库存后，应先落库预扣记录，再发送下单事件。
      */
     @Test
-    void should_reserve_stock_and_publish_order_event_when_request_is_valid() {
+    void should_persist_reservation_and_publish_order_event_when_request_is_valid() {
         SeckillReserveRequest request = buildRequest();
         SeckillActivityDTO activity = buildActivity(SeckillConstants.SALE_STATUS_ON_SALE);
         StockReserveResult result = StockReserveResult.success(
@@ -84,10 +92,14 @@ class SeckillServiceTest {
         assertEquals("reservation-001", response.getReservationId());
         assertEquals(SeckillConstants.RESERVATION_STATUS_RESERVED, response.getStatus());
 
+        verify(reservationRecordRepository).save(any());
         ArgumentCaptor<OrderCreateRequestedEvent> eventCaptor = ArgumentCaptor.forClass(OrderCreateRequestedEvent.class);
         verify(orderCreateEventPublisher).publish(eventCaptor.capture());
         assertEquals("reservation-001", eventCaptor.getValue().getReservationId());
         assertEquals(request.getIdempotencyKey(), eventCaptor.getValue().getIdempotencyKey());
+        InOrder inOrder = inOrder(reservationRecordRepository, orderCreateEventPublisher);
+        inOrder.verify(reservationRecordRepository).save(any());
+        inOrder.verify(orderCreateEventPublisher).publish(any());
     }
 
     /**
@@ -136,6 +148,30 @@ class SeckillServiceTest {
         BusinessException exception = assertThrows(BusinessException.class, () -> seckillService.reserve(request));
 
         assertEquals(ErrorCode.SECKILL_DUPLICATE_REQUEST.getCode(), exception.getCode());
+        verify(reservationRecordRepository, never()).save(any());
+        verify(orderCreateEventPublisher, never()).publish(any());
+    }
+
+    /**
+     * 预扣记录落库失败时，应中断下单事件发送。
+     */
+    @Test
+    void should_not_publish_order_event_when_reservation_record_save_fails() {
+        SeckillReserveRequest request = buildRequest();
+        SeckillActivityDTO activity = buildActivity(SeckillConstants.SALE_STATUS_ON_SALE);
+        StockReserveResult result = StockReserveResult.success(
+                "reservation-001",
+                Instant.parse("2026-06-05T10:00:00Z"),
+                Instant.parse("2026-06-05T10:15:00Z")
+        );
+        when(activityRepository.findByActivityIdAndTicketId(request.getActivityId(), request.getTicketId()))
+                .thenReturn(Optional.of(activity));
+        when(stockReservationGateway.reserve(any(StockReserveCommand.class))).thenReturn(result);
+        doThrow(new IllegalStateException("save failed")).when(reservationRecordRepository).save(any());
+
+        assertThrows(IllegalStateException.class, () -> seckillService.reserve(request));
+
+        verify(reservationRecordRepository).save(any());
         verify(orderCreateEventPublisher, never()).publish(any());
     }
 

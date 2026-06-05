@@ -1,6 +1,37 @@
 spring:
+  config:
+    import: "optional:nacos:${spring.application.name}.${spring.cloud.nacos.config.file-extension}"
   application:
     name: gateway-service
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: user-service-route
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/users/**
+            - id: ticket-service-route
+              uri: lb://ticket-service
+              predicates:
+                - Path=/api/v1/activities/**
+            - id: seckill-service-route
+              uri: lb://seckill-service
+              predicates:
+                - Path=/api/v1/seckill/**
+    nacos:
+      discovery:
+        enabled: ${TICKET_NACOS_DISCOVERY_ENABLED:false}
+        server-addr: ${TICKET_NACOS_SERVER_ADDR:127.0.0.1:8848}
+        namespace: ${TICKET_NACOS_NAMESPACE:public}
+        group: ${TICKET_NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        enabled: ${TICKET_NACOS_CONFIG_ENABLED:false}
+        server-addr: ${TICKET_NACOS_SERVER_ADDR:127.0.0.1:8848}
+        namespace: ${TICKET_NACOS_NAMESPACE:public}
+        group: ${TICKET_NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
 
 server:
   port: 8080
