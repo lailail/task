@@ -3,6 +3,7 @@ package com.example.ticket.user.controller;
 import com.example.ticket.common.response.ApiResponse;
 import com.example.ticket.user.dto.UserDTO;
 import com.example.ticket.user.request.UserLoginRequest;
+import com.example.ticket.user.request.UserRefreshTokenRequest;
 import com.example.ticket.user.request.UserRegisterRequest;
 import com.example.ticket.user.response.UserLoginResponse;
 import com.example.ticket.user.service.UserService;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 用户接口控制器。
- * 当前阶段只负责接收注册和登录请求，并把参数校验后的调用转交给服务层。
+ * 当前阶段负责接收注册、登录和刷新令牌请求，并把参数校验后的调用转交给服务层。
  */
 @RestController
 @RequestMapping("/api/v1/users")
@@ -39,10 +40,21 @@ public class UserController {
     }
 
     /**
-     * 校验用户名密码并返回当前阶段的占位登录结果。
+     * 校验用户名密码并返回正式 JWT 登录结果。
      */
     @PostMapping("/login")
     public ApiResponse<UserLoginResponse> login(@Valid @RequestBody UserLoginRequest request) {
         return ApiResponse.success(userService.login(request));
+    }
+
+    /**
+     * 根据 refresh token 换取新的登录结果。
+     *
+     * @param request 刷新令牌请求
+     * @return 新的登录结果
+     */
+    @PostMapping("/token/refresh")
+    public ApiResponse<UserLoginResponse> refreshToken(@Valid @RequestBody UserRefreshTokenRequest request) {
+        return ApiResponse.success(userService.refreshToken(request));
     }
 }

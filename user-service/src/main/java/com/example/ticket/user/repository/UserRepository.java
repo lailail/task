@@ -19,6 +19,14 @@ public interface UserRepository {
     Optional<UserDO> findByUsername(String username);
 
     /**
+     * 按用户主键查询用户。
+     *
+     * @param userId 用户主键
+     * @return 查询结果
+     */
+    Optional<UserDO> findById(Long userId);
+
+    /**
      * 保存用户数据。
      *
      * @param user 用户持久化对象

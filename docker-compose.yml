@@ -100,6 +100,43 @@ services:
     networks:
       - ticket-network
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: ticket-prometheus
+    profiles:
+      - observability
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - ticket-network
+
+  grafana:
+    image: grafana/grafana:11.1.5
+    container_name: ticket-grafana
+    profiles:
+      - observability
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - ticket-network
+
 networks:
   ticket-network:
     driver: bridge
@@ -110,3 +147,5 @@ volumes:
   rabbitmq-data:
   nacos-data:
   nacos-logs:
+  prometheus-data:
+  grafana-data:

@@ -1,11 +1,17 @@
 package com.example.ticket.user.service.impl;
 
+import com.example.ticket.common.auth.AuthenticatedUser;
+import com.example.ticket.common.auth.JwtTokenSupport;
+import com.example.ticket.common.auth.JwtTokenType;
+import com.example.ticket.common.auth.ParsedJwtToken;
 import com.example.ticket.common.error.BusinessException;
 import com.example.ticket.common.error.ErrorCode;
 import com.example.ticket.user.domain.UserDO;
 import com.example.ticket.user.dto.UserDTO;
+import com.example.ticket.user.repository.RefreshTokenStore;
 import com.example.ticket.user.repository.UserRepository;
 import com.example.ticket.user.request.UserLoginRequest;
+import com.example.ticket.user.request.UserRefreshTokenRequest;
 import com.example.ticket.user.request.UserRegisterRequest;
 import com.example.ticket.user.response.UserLoginResponse;
 import com.example.ticket.user.service.UserService;
@@ -13,26 +19,35 @@ import com.example.ticket.user.support.UserSecurityConstants;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
-
 /**
  * 用户领域服务实现。
- * 当前阶段负责注册和登录主流程编排，持久化仍通过仓储接口抽象，避免业务层直接耦合具体存储实现。
+ * 当前阶段负责注册、登录、刷新令牌主流程编排，持久化仍通过仓储接口抽象，避免业务层直接耦合具体存储实现。
  */
 @Service
 public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserRepository userRepository;
+    private final JwtTokenSupport jwtTokenSupport;
+    private final RefreshTokenStore refreshTokenStore;
 
     /**
      * 构造用户服务实现。
      *
      * @param userRepository 用户仓储
      * @param passwordEncoder 密码编码器
+     * @param jwtTokenSupport JWT 支持组件
+     * @param refreshTokenStore 刷新令牌存储
      */
-    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            JwtTokenSupport jwtTokenSupport,
+            RefreshTokenStore refreshTokenStore
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtTokenSupport = jwtTokenSupport;
+        this.refreshTokenStore = refreshTokenStore;
     }
 
     /**
@@ -55,7 +70,7 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 校验用户凭证并返回当前阶段的占位登录结果。
+     * 校验用户凭证并返回正式 JWT 登录结果。
      */
     @Override
     public UserLoginResponse login(UserLoginRequest request) {
@@ -63,14 +78,33 @@ public class UserServiceImpl implements UserService {
         UserDO user = userRepository.findByUsername(request.getUsername())
                 .filter(item -> passwordEncoder.matches(request.getPassword(), item.getPassword()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
+        return buildLoginResponse(toAuthenticatedUser(user));
+    }
 
-        UserLoginResponse response = new UserLoginResponse();
-        response.setUserId(user.getUserId());
-        response.setUsername(user.getUsername());
-        response.setDisplayName(user.getDisplayName());
-        // 当前仍是 Phase 2 占位 token，实现目标只是打通最小登录链路，后续会替换为正式 JWT 方案。
-        response.setAccessToken(UserSecurityConstants.DEMO_ACCESS_TOKEN_PREFIX + UUID.randomUUID());
-        return response;
+    /**
+     * 根据 refresh token 刷新登录结果。
+     *
+     * @param request 刷新令牌请求
+     * @return 新的登录结果
+     */
+    @Override
+    public UserLoginResponse refreshToken(UserRefreshTokenRequest request) {
+        ParsedJwtToken parsedJwtToken = jwtTokenSupport.parseToken(request.getRefreshToken());
+        if (parsedJwtToken.getTokenType() != JwtTokenType.REFRESH) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        AuthenticatedUser authenticatedUser = parsedJwtToken.getAuthenticatedUser();
+        if (!refreshTokenStore.exists(authenticatedUser.getUserId(), authenticatedUser.getTokenId())) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        UserDO user = userRepository.findById(authenticatedUser.getUserId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID));
+
+        // refresh token 换新时立即吊销旧 token，避免同一个 refresh token 被长期重复使用。
+        refreshTokenStore.delete(authenticatedUser.getUserId(), authenticatedUser.getTokenId());
+        return buildLoginResponse(toAuthenticatedUser(user));
     }
 
     /**
@@ -82,5 +116,49 @@ public class UserServiceImpl implements UserService {
         dto.setUsername(user.getUsername());
         dto.setDisplayName(user.getDisplayName());
         return dto;
+    }
+
+    /**
+     * 把用户持久化对象转换成认证用户对象。
+     *
+     * @param user 用户持久化对象
+     * @return 已认证用户
+     */
+    private AuthenticatedUser toAuthenticatedUser(UserDO user) {
+        AuthenticatedUser authenticatedUser = new AuthenticatedUser();
+        authenticatedUser.setUserId(user.getUserId());
+        authenticatedUser.setUsername(user.getUsername());
+        authenticatedUser.setDisplayName(user.getDisplayName());
+        return authenticatedUser;
+    }
+
+    /**
+     * 构造正式 JWT 登录响应。
+     *
+     * @param authenticatedUser 已认证用户
+     * @return 登录响应
+     */
+    private UserLoginResponse buildLoginResponse(AuthenticatedUser authenticatedUser) {
+        String accessToken = jwtTokenSupport.createAccessToken(authenticatedUser);
+        String refreshToken = jwtTokenSupport.createRefreshToken(authenticatedUser);
+        ParsedJwtToken parsedAccessToken = jwtTokenSupport.parseToken(accessToken);
+        ParsedJwtToken parsedRefreshToken = jwtTokenSupport.parseToken(refreshToken);
+
+        refreshTokenStore.save(
+                authenticatedUser.getUserId(),
+                parsedRefreshToken.getAuthenticatedUser().getTokenId(),
+                parsedRefreshToken.getExpireAt()
+        );
+
+        UserLoginResponse response = new UserLoginResponse();
+        response.setUserId(authenticatedUser.getUserId());
+        response.setUsername(authenticatedUser.getUsername());
+        response.setDisplayName(authenticatedUser.getDisplayName());
+        response.setAccessToken(accessToken);
+        response.setRefreshToken(refreshToken);
+        response.setTokenType(UserSecurityConstants.TOKEN_TYPE);
+        response.setAccessTokenExpireAt(parsedAccessToken.getExpireAt());
+        response.setRefreshTokenExpireAt(parsedRefreshToken.getExpireAt());
+        return response;
     }
 }

@@ -73,6 +73,12 @@ public class GlobalExceptionHandler {
         if (exception.getCode() == ErrorCode.INVALID_CREDENTIALS.getCode()) {
             return HttpStatus.UNAUTHORIZED;
         }
+        if (exception.getCode() == ErrorCode.TOKEN_INVALID.getCode()
+                || exception.getCode() == ErrorCode.TOKEN_EXPIRED.getCode()
+                || exception.getCode() == ErrorCode.REFRESH_TOKEN_INVALID.getCode()
+                || exception.getCode() == ErrorCode.AUTHENTICATED_USER_MISSING.getCode()) {
+            return HttpStatus.UNAUTHORIZED;
+        }
         return HttpStatus.BAD_REQUEST;
     }
 }

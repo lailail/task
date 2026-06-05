@@ -21,6 +21,12 @@ spring:
     username: ${TICKET_MYSQL_USERNAME:ticket_app}
     password: ${TICKET_MYSQL_PASSWORD:ticket_app_123}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${TICKET_REDIS_HOST:127.0.0.1}
+      port: ${TICKET_REDIS_PORT:6379}
+      database: ${TICKET_REDIS_DATABASE:0}
+      timeout: ${TICKET_REDIS_TIMEOUT:3000ms}
 
 server:
   port: 8081
@@ -36,5 +42,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+ticket:
+  security:
+    jwt:
+      issuer: ${TICKET_JWT_ISSUER:ticket-system}
+      secret: ${TICKET_JWT_SECRET:ticket-local-demo-jwt-secret-key-please-change}
+      access-token-expire-seconds: ${TICKET_JWT_ACCESS_EXPIRE_SECONDS:1800}
+      refresh-token-expire-seconds: ${TICKET_JWT_REFRESH_EXPIRE_SECONDS:604800}
 

@@ -16,9 +16,6 @@ public class SeckillReserveRequest {
     private String idempotencyKey;
 
     @NotNull
-    private Long userId;
-
-    @NotNull
     private Long activityId;
 
     @NotNull
@@ -62,24 +59,6 @@ public class SeckillReserveRequest {
      */
     public void setIdempotencyKey(String idempotencyKey) {
         this.idempotencyKey = idempotencyKey;
-    }
-
-    /**
-     * 获取用户标识。
-     *
-     * @return 用户标识
-     */
-    public Long getUserId() {
-        return userId;
-    }
-
-    /**
-     * 设置用户标识。
-     *
-     * @param userId 用户标识
-     */
-    public void setUserId(Long userId) {
-        this.userId = userId;
     }
 
     /**
