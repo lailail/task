@@ -2,9 +2,10 @@ package com.example.ticket.seckill.service.impl;
 
 import com.example.ticket.common.error.BusinessException;
 import com.example.ticket.common.error.ErrorCode;
+import com.example.ticket.common.event.order.OrderCreateRequestedEvent;
+import com.example.ticket.common.event.order.OrderEventConstants;
 import com.example.ticket.seckill.domain.ReservationDO;
 import com.example.ticket.seckill.dto.SeckillActivityDTO;
-import com.example.ticket.seckill.event.OrderCreateRequestedEvent;
 import com.example.ticket.seckill.gateway.OrderCreateEventPublisher;
 import com.example.ticket.seckill.gateway.StockReservationGateway;
 import com.example.ticket.seckill.gateway.model.StockReserveCommand;
@@ -147,7 +148,7 @@ public class SeckillServiceImpl implements SeckillService {
     private OrderCreateRequestedEvent buildOrderCreateEvent(ReservationDO reservation) {
         OrderCreateRequestedEvent event = new OrderCreateRequestedEvent();
         event.setEventId(UUID.randomUUID().toString());
-        event.setEventType(SeckillConstants.ORDER_CREATE_EVENT_TYPE);
+        event.setEventType(OrderEventConstants.ORDER_CREATE_REQUESTED);
         event.setOccurredAt(reservation.getOccurredAt());
         event.setRequestId(reservation.getRequestId());
         event.setIdempotencyKey(reservation.getIdempotencyKey());
@@ -157,7 +158,7 @@ public class SeckillServiceImpl implements SeckillService {
         event.setUserId(reservation.getUserId());
         event.setQuantity(reservation.getQuantity());
         event.setExpireAt(reservation.getExpireAt());
-        event.setSource(SeckillConstants.ORDER_CREATE_EVENT_SOURCE);
+        event.setSource(OrderEventConstants.SOURCE_SECKILL_SERVICE);
         return event;
     }
 

@@ -25,3 +25,8 @@ management:
       exposure:
         include: health,info
 
+ticket:
+  job:
+    mq:
+      order-result-queue: ticket.order.result.queue
+

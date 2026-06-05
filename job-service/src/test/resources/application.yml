@@ -4,3 +4,12 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+
+ticket:
+  job:
+    mq:
+      order-result-queue: ticket.order.result.queue

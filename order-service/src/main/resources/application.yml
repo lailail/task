@@ -25,3 +25,8 @@ management:
       exposure:
         include: health,info
 
+ticket:
+  order:
+    mq:
+      create-queue: ticket.order.create.queue
+

@@ -2,8 +2,8 @@ package com.example.ticket.seckill.service;
 
 import com.example.ticket.common.error.BusinessException;
 import com.example.ticket.common.error.ErrorCode;
+import com.example.ticket.common.event.order.OrderCreateRequestedEvent;
 import com.example.ticket.seckill.dto.SeckillActivityDTO;
-import com.example.ticket.seckill.event.OrderCreateRequestedEvent;
 import com.example.ticket.seckill.gateway.OrderCreateEventPublisher;
 import com.example.ticket.seckill.gateway.StockReservationGateway;
 import com.example.ticket.seckill.gateway.model.StockReserveCommand;

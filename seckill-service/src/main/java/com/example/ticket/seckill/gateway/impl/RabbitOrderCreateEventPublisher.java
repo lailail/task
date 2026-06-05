@@ -1,8 +1,8 @@
 package com.example.ticket.seckill.gateway.impl;
 
-import com.example.ticket.seckill.event.OrderCreateRequestedEvent;
+import com.example.ticket.common.event.order.OrderCreateRequestedEvent;
+import com.example.ticket.common.event.order.OrderEventConstants;
 import com.example.ticket.seckill.gateway.OrderCreateEventPublisher;
-import com.example.ticket.seckill.support.SeckillConstants;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
@@ -31,8 +31,8 @@ public class RabbitOrderCreateEventPublisher implements OrderCreateEventPublishe
     @Override
     public void publish(OrderCreateRequestedEvent event) {
         rabbitTemplate.convertAndSend(
-                SeckillConstants.ORDER_CREATE_EXCHANGE,
-                SeckillConstants.ORDER_CREATE_ROUTING_KEY,
+                OrderEventConstants.ORDER_CREATE_EXCHANGE,
+                OrderEventConstants.ORDER_CREATE_ROUTING_KEY,
                 event
         );
     }
