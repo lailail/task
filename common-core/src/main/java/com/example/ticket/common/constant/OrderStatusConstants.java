@@ -9,6 +9,7 @@ public final class OrderStatusConstants {
     public static final String PAID = "PAID";
     public static final String CANCELLED = "CANCELLED";
     public static final String CLOSED = "CLOSED";
+    public static final String COMPLETED = "COMPLETED";
 
     /**
      * 禁止实例化常量类。

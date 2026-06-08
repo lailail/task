@@ -1,11 +1,15 @@
 package com.example.ticket.payment.service;
 
 import com.example.ticket.common.event.payment.PaymentEventConstants;
+import com.example.ticket.common.event.payment.PaymentReconciledEvent;
 import com.example.ticket.common.event.payment.PaymentResultEvent;
 import com.example.ticket.payment.domain.PaymentRecordDO;
+import com.example.ticket.payment.domain.PaymentReconcileIssueDO;
 import com.example.ticket.payment.gateway.PaymentResultEventPublisher;
 import com.example.ticket.payment.gateway.OrderStatusQueryGateway;
+import com.example.ticket.payment.gateway.PaymentReconciledEventPublisher;
 import com.example.ticket.payment.gateway.dto.OrderStatusDTO;
+import com.example.ticket.payment.mapper.PaymentReconcileIssueMapper;
 import com.example.ticket.payment.mapper.PaymentRecordMapper;
 import com.example.ticket.payment.request.PaymentNotifyRequest;
 import com.example.ticket.payment.service.impl.PaymentProcessServiceImpl;
@@ -16,12 +20,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,6 +47,12 @@ class PaymentProcessServiceTest {
     @Mock
     private OrderStatusQueryGateway orderStatusQueryGateway;
 
+    @Mock
+    private PaymentReconcileIssueMapper paymentReconcileIssueMapper;
+
+    @Mock
+    private PaymentReconciledEventPublisher paymentReconciledEventPublisher;
+
     private PaymentProcessService paymentProcessService;
 
     /**
@@ -50,7 +62,9 @@ class PaymentProcessServiceTest {
     void setUp() {
         paymentProcessService = new PaymentProcessServiceImpl(
                 paymentRecordMapper,
+                paymentReconcileIssueMapper,
                 paymentResultEventPublisher,
+                paymentReconciledEventPublisher,
                 orderStatusQueryGateway,
                 50
         );
@@ -81,11 +95,106 @@ class PaymentProcessServiceTest {
     void should_republish_payment_result_when_reconcile_detects_order_not_converged() {
         PaymentRecordDO record = buildSuccessPaymentRecord();
         when(paymentRecordMapper.selectList(any())).thenReturn(List.of(record));
+        when(paymentRecordMapper.updateReconcileStatusIfCurrent(
+                1L,
+                PaymentConstants.RECONCILE_STATUS_PENDING,
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                LocalDateTime.parse("2026-06-05T14:00:00")
+        )).thenReturn(1);
+        when(paymentRecordMapper.updateReconcileStatusIfCurrent(
+                1L,
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                PaymentConstants.RECONCILE_STATUS_PENDING,
+                LocalDateTime.parse("2026-06-05T14:00:00")
+        )).thenReturn(1);
         when(orderStatusQueryGateway.queryOrderStatus(20001L)).thenReturn(buildOrderStatusDTO("CREATED"));
+        when(paymentReconcileIssueMapper.selectOne(any())).thenReturn(null);
 
         paymentProcessService.reconcilePendingPayments(LocalDateTime.parse("2026-06-05T14:00:00"));
 
         verify(paymentResultEventPublisher).publish(any(PaymentResultEvent.class));
+        verify(paymentReconcileIssueMapper).insert(any(PaymentReconcileIssueDO.class));
+    }
+
+    /**
+     * 对账发现支付成功且订单已经推进到 PAID 时，应发布支付收敛事件并解决历史异常。
+     */
+    @Test
+    void should_publish_reconciled_event_and_resolve_issue_when_payment_converges_to_paid() {
+        PaymentRecordDO record = buildSuccessPaymentRecord();
+        PaymentReconcileIssueDO issue = buildOpenIssue();
+        when(paymentRecordMapper.selectList(any())).thenReturn(List.of(record));
+        when(paymentRecordMapper.updateReconcileStatusIfCurrent(
+                1L,
+                PaymentConstants.RECONCILE_STATUS_PENDING,
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                LocalDateTime.parse("2026-06-05T14:05:00")
+        )).thenReturn(1);
+        when(paymentRecordMapper.updateReconcileStatusIfCurrent(
+                1L,
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                PaymentConstants.RECONCILE_STATUS_DONE,
+                LocalDateTime.parse("2026-06-05T14:05:00")
+        )).thenReturn(1);
+        when(orderStatusQueryGateway.queryOrderStatus(20001L)).thenReturn(buildOrderStatusDTO("PAID"));
+        when(paymentReconcileIssueMapper.selectOne(any())).thenReturn(issue);
+
+        paymentProcessService.reconcilePendingPayments(LocalDateTime.parse("2026-06-05T14:05:00"));
+
+        verify(paymentReconciledEventPublisher).publish(any(PaymentReconciledEvent.class));
+        verify(paymentReconcileIssueMapper).updateById(any(PaymentReconcileIssueDO.class));
+    }
+
+    /**
+     * 如果当前待对账记录已被其他工作线程抢占，则当前线程应直接跳过，不再重复发布事件。
+     */
+    @Test
+    void should_skip_reconcile_record_when_another_worker_already_claimed_it() {
+        PaymentRecordDO record = buildSuccessPaymentRecord();
+        when(paymentRecordMapper.selectList(any())).thenReturn(List.of(record));
+        when(paymentRecordMapper.updateReconcileStatusIfCurrent(
+                1L,
+                PaymentConstants.RECONCILE_STATUS_PENDING,
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                LocalDateTime.parse("2026-06-05T14:10:00")
+        )).thenReturn(0);
+
+        paymentProcessService.reconcilePendingPayments(LocalDateTime.parse("2026-06-05T14:10:00"));
+
+        verify(orderStatusQueryGateway, never()).queryOrderStatus(any());
+        verify(paymentResultEventPublisher, never()).publish(any(PaymentResultEvent.class));
+        verify(paymentReconciledEventPublisher, never()).publish(any(PaymentReconciledEvent.class));
+    }
+
+    /**
+     * 如果异常事实在并发下被其他工作线程先插入，则当前线程应兜底更新而不是整批回滚。
+     */
+    @Test
+    void should_continue_reconcile_when_issue_insert_hits_duplicate_key() {
+        PaymentRecordDO record = buildSuccessPaymentRecord();
+        PaymentReconcileIssueDO existingIssue = buildOpenIssue();
+        LocalDateTime now = LocalDateTime.parse("2026-06-05T14:15:00");
+        when(paymentRecordMapper.selectList(any())).thenReturn(List.of(record));
+        when(paymentRecordMapper.updateReconcileStatusIfCurrent(
+                1L,
+                PaymentConstants.RECONCILE_STATUS_PENDING,
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                now
+        )).thenReturn(1);
+        when(paymentRecordMapper.updateReconcileStatusIfCurrent(
+                1L,
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                PaymentConstants.RECONCILE_STATUS_PENDING,
+                now
+        )).thenReturn(1);
+        when(orderStatusQueryGateway.queryOrderStatus(20001L)).thenReturn(buildOrderStatusDTO("CREATED"));
+        when(paymentReconcileIssueMapper.selectOne(any())).thenReturn(null, existingIssue);
+        when(paymentReconcileIssueMapper.insert(any(PaymentReconcileIssueDO.class)))
+                .thenThrow(new DuplicateKeyException("duplicate"));
+
+        paymentProcessService.reconcilePendingPayments(now);
+
+        verify(paymentReconcileIssueMapper).updateById(any(PaymentReconcileIssueDO.class));
     }
 
     /**
@@ -143,5 +252,18 @@ class PaymentProcessServiceTest {
         dto.setOrderId(20001L);
         dto.setOrderStatus(orderStatus);
         return dto;
+    }
+
+    /**
+     * 构造已打开的对账异常记录。
+     *
+     * @return 对账异常记录
+     */
+    private PaymentReconcileIssueDO buildOpenIssue() {
+        PaymentReconcileIssueDO issue = new PaymentReconcileIssueDO();
+        issue.setIssueId(11L);
+        issue.setPaymentRequestId("payment-req-001");
+        issue.setIssueStatus(PaymentConstants.RECONCILE_ISSUE_STATUS_OPEN);
+        return issue;
     }
 }

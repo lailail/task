@@ -1,6 +1,7 @@
 package com.example.ticket.order.service;
 
 import com.example.ticket.common.event.payment.PaymentResultEvent;
+import com.example.ticket.common.event.payment.PaymentReconciledEvent;
 
 /**
  * 订单支付结果处理服务接口。
@@ -14,4 +15,11 @@ public interface OrderPaymentService {
      * @param event 支付结果事件
      */
     void handlePaymentResult(PaymentResultEvent event);
+
+    /**
+     * 处理支付收敛事件。
+     *
+     * @param event 支付收敛事件
+     */
+    void handlePaymentReconciled(PaymentReconciledEvent event);
 }

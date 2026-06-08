@@ -52,6 +52,10 @@ ticket:
     result-retry-batch-size: 100
     result-retry-interval-seconds: 30
     result-retry-cron: 12/20 * * * * ?
+    reconciled-max-retry-count: 20
+    reconciled-retry-batch-size: 100
+    reconciled-retry-interval-seconds: 30
+    reconciled-retry-cron: 18/20 * * * * ?
     reconcile-batch-size: 100
     reconcile-cron: 15/30 * * * * ?
     order-service-base-url: ${TICKET_ORDER_SERVICE_BASE_URL:http://127.0.0.1:8084}

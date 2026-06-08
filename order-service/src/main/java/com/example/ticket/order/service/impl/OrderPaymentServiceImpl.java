@@ -1,10 +1,13 @@
 package com.example.ticket.order.service.impl;
 
 import com.example.ticket.common.event.payment.PaymentEventConstants;
+import com.example.ticket.common.event.payment.PaymentReconciledEvent;
 import com.example.ticket.common.event.payment.PaymentResultEvent;
 import com.example.ticket.common.event.stock.StockEventConstants;
 import com.example.ticket.common.event.stock.StockReleaseEvent;
+import com.example.ticket.common.event.order.OrderCompletedEvent;
 import com.example.ticket.order.domain.TicketOrderDO;
+import com.example.ticket.order.gateway.OrderCompletedEventPublisher;
 import com.example.ticket.order.gateway.OrderStockReleaseEventPublisher;
 import com.example.ticket.order.mapper.TicketOrderMapper;
 import com.example.ticket.order.service.OrderPaymentService;
@@ -27,19 +30,23 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
 
     private final TicketOrderMapper ticketOrderMapper;
     private final OrderStockReleaseEventPublisher orderStockReleaseEventPublisher;
+    private final OrderCompletedEventPublisher orderCompletedEventPublisher;
 
     /**
      * 构造订单支付结果处理服务。
      *
      * @param ticketOrderMapper 订单 Mapper
      * @param orderStockReleaseEventPublisher 库存释放事件发布器
+     * @param orderCompletedEventPublisher 订单完成事件发布器
      */
     public OrderPaymentServiceImpl(
             TicketOrderMapper ticketOrderMapper,
-            OrderStockReleaseEventPublisher orderStockReleaseEventPublisher
+            OrderStockReleaseEventPublisher orderStockReleaseEventPublisher,
+            OrderCompletedEventPublisher orderCompletedEventPublisher
     ) {
         this.ticketOrderMapper = ticketOrderMapper;
         this.orderStockReleaseEventPublisher = orderStockReleaseEventPublisher;
+        this.orderCompletedEventPublisher = orderCompletedEventPublisher;
     }
 
     /**
@@ -56,46 +63,40 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
         }
 
         if (PaymentEventConstants.PAYMENT_SUCCEEDED.equals(event.getEventType())) {
-            // 只有待支付订单才能推进到已支付，避免重复支付结果覆盖终态。
-            ticketOrderMapper.updateById(buildPaidOrder(order, event.getOccurredAt()));
+            // 只有真正完成 CREATED -> PAID 条件更新的线程，才算本次状态推进生效。
+            ticketOrderMapper.markPaidIfCreated(order.getOrderId(), toLocalDateTime(event.getOccurredAt()));
             return;
         }
 
         if (PaymentEventConstants.PAYMENT_FAILED.equals(event.getEventType())
                 || PaymentEventConstants.PAYMENT_EXPIRED.equals(event.getEventType())) {
-            // 失败或过期都收敛到已取消，并统一通过库存释放事件驱动后续补偿。
-            ticketOrderMapper.updateById(buildCancelledOrder(order));
+            // 失败或过期都收敛到已取消，但只有条件更新成功后才允许继续发布释放事件。
+            if (ticketOrderMapper.markCancelledIfCreated(order.getOrderId(), LocalDateTime.now(DEFAULT_ZONE_ID)) <= 0) {
+                return;
+            }
             orderStockReleaseEventPublisher.publish(buildReleaseEvent(order, event));
         }
     }
 
     /**
-     * 构造已支付订单变更对象。
+     * 处理支付收敛事件。
      *
-     * @param order 原订单
-     * @param occurredAt 支付结果发生时间
-     * @return 仅包含变更字段的订单对象
+     * @param event 支付收敛事件
      */
-    private TicketOrderDO buildPaidOrder(TicketOrderDO order, Instant occurredAt) {
-        TicketOrderDO target = new TicketOrderDO();
-        target.setOrderId(order.getOrderId());
-        target.setOrderStatus(OrderConstants.ORDER_STATUS_PAID);
-        target.setPaidAt(toLocalDateTime(occurredAt));
-        return target;
-    }
+    @Override
+    @Transactional
+    public void handlePaymentReconciled(PaymentReconciledEvent event) {
+        TicketOrderDO order = ticketOrderMapper.selectById(event.getOrderId());
+        if (order == null || !OrderConstants.ORDER_STATUS_PAID.equals(order.getOrderStatus())) {
+            // 只有已支付订单才允许被推进到完成态，其他状态一律忽略，保证重复消费与非法状态都安全。
+            return;
+        }
 
-    /**
-     * 构造已取消订单变更对象。
-     *
-     * @param order 原订单
-     * @return 仅包含变更字段的订单对象
-     */
-    private TicketOrderDO buildCancelledOrder(TicketOrderDO order) {
-        TicketOrderDO target = new TicketOrderDO();
-        target.setOrderId(order.getOrderId());
-        target.setOrderStatus(OrderConstants.ORDER_STATUS_CANCELLED);
-        target.setClosedAt(LocalDateTime.now(DEFAULT_ZONE_ID));
-        return target;
+        // 只有真正完成 PAID -> COMPLETED 条件更新的线程，才允许对外发布完成事件。
+        if (ticketOrderMapper.markCompletedIfPaid(order.getOrderId()) <= 0) {
+            return;
+        }
+        orderCompletedEventPublisher.publish(buildCompletedEvent(order, event));
     }
 
     /**
@@ -121,6 +122,32 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
         releaseEvent.setReason(event.getReason());
         releaseEvent.setSource(OrderConstants.ORDER_SOURCE_ORDER_SERVICE);
         return releaseEvent;
+    }
+
+    /**
+     * 构造订单完成事件。
+     *
+     * @param order 原订单
+     * @param event 支付收敛事件
+     * @return 订单完成事件
+     */
+    private OrderCompletedEvent buildCompletedEvent(TicketOrderDO order, PaymentReconciledEvent event) {
+        OrderCompletedEvent completedEvent = new OrderCompletedEvent();
+        completedEvent.setEventId(UUID.randomUUID().toString());
+        completedEvent.setEventType(OrderConstants.ORDER_RESULT_TYPE_COMPLETED);
+        completedEvent.setOccurredAt(Instant.now());
+        completedEvent.setRequestId(order.getRequestId());
+        completedEvent.setOrderId(order.getOrderId());
+        completedEvent.setOrderNo(order.getOrderNo());
+        completedEvent.setPaymentRequestId(event.getPaymentRequestId());
+        completedEvent.setReservationId(order.getReservationId());
+        completedEvent.setActivityId(order.getActivityId());
+        completedEvent.setTicketId(order.getTicketId());
+        completedEvent.setUserId(order.getUserId());
+        completedEvent.setQuantity(order.getQuantity());
+        completedEvent.setStatus(OrderConstants.ORDER_STATUS_COMPLETED);
+        completedEvent.setSource(OrderConstants.ORDER_SOURCE_ORDER_SERVICE);
+        return completedEvent;
     }
 
     /**
