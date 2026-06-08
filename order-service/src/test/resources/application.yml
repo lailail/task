@@ -23,6 +23,11 @@ ticket:
     result-retry-batch-size: 100
     result-retry-interval-seconds: 30
     result-retry-cron: 10/20 * * * * ?
+    complete-max-retry-count: 20
+    complete-retry-batch-size: 100
+    complete-retry-interval-seconds: 30
+    complete-retry-cron: 16/20 * * * * ?
     mq:
       create-queue: ticket.order.create.queue
       payment-result-queue: ticket.payment.result.queue
+      payment-reconciled-queue: ticket.payment.reconciled.queue

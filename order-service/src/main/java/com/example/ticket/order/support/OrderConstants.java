@@ -12,6 +12,7 @@ public final class OrderConstants {
     public static final String ORDER_STATUS_PAID = "PAID";
     public static final String ORDER_STATUS_CANCELLED = "CANCELLED";
     public static final String ORDER_STATUS_CLOSED = "CLOSED";
+    public static final String ORDER_STATUS_COMPLETED = "COMPLETED";
     public static final String ORDER_SOURCE_ORDER_SERVICE = "ORDER_SERVICE";
 
     public static final String EVENT_CONSUME_STATUS_SUCCESS = "SUCCESS";
@@ -20,9 +21,14 @@ public final class OrderConstants {
     public static final String ORDER_RESULT_TASK_STATUS_RETRYING = ReliableMessageTaskStatus.RETRYING;
     public static final String ORDER_RESULT_TASK_STATUS_SENT = ReliableMessageTaskStatus.SENT;
     public static final String ORDER_RESULT_TASK_STATUS_EXHAUSTED = ReliableMessageTaskStatus.EXHAUSTED;
+    public static final String ORDER_COMPLETE_TASK_STATUS_PENDING = ReliableMessageTaskStatus.PENDING;
+    public static final String ORDER_COMPLETE_TASK_STATUS_RETRYING = ReliableMessageTaskStatus.RETRYING;
+    public static final String ORDER_COMPLETE_TASK_STATUS_SENT = ReliableMessageTaskStatus.SENT;
+    public static final String ORDER_COMPLETE_TASK_STATUS_EXHAUSTED = ReliableMessageTaskStatus.EXHAUSTED;
 
     public static final String ORDER_RESULT_TYPE_CREATED = OrderEventConstants.ORDER_CREATED;
     public static final String ORDER_RESULT_TYPE_CREATE_FAILED = OrderEventConstants.ORDER_CREATE_FAILED;
+    public static final String ORDER_RESULT_TYPE_COMPLETED = OrderEventConstants.ORDER_COMPLETED;
 
     /**
      * 禁止实例化常量类。

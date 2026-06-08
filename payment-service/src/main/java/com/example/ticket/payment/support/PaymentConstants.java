@@ -14,11 +14,20 @@ public final class PaymentConstants {
     public static final String PAYMENT_STATUS_EXPIRED = "EXPIRED";
 
     public static final String RECONCILE_STATUS_PENDING = "PENDING";
+    public static final String RECONCILE_STATUS_PROCESSING = "PROCESSING";
     public static final String RECONCILE_STATUS_DONE = "DONE";
     public static final String PAYMENT_RESULT_TASK_STATUS_PENDING = ReliableMessageTaskStatus.PENDING;
     public static final String PAYMENT_RESULT_TASK_STATUS_RETRYING = ReliableMessageTaskStatus.RETRYING;
     public static final String PAYMENT_RESULT_TASK_STATUS_SENT = ReliableMessageTaskStatus.SENT;
     public static final String PAYMENT_RESULT_TASK_STATUS_EXHAUSTED = ReliableMessageTaskStatus.EXHAUSTED;
+    public static final String PAYMENT_RECONCILED_TASK_STATUS_PENDING = ReliableMessageTaskStatus.PENDING;
+    public static final String PAYMENT_RECONCILED_TASK_STATUS_RETRYING = ReliableMessageTaskStatus.RETRYING;
+    public static final String PAYMENT_RECONCILED_TASK_STATUS_SENT = ReliableMessageTaskStatus.SENT;
+    public static final String PAYMENT_RECONCILED_TASK_STATUS_EXHAUSTED = ReliableMessageTaskStatus.EXHAUSTED;
+    public static final String RECONCILE_ISSUE_STATUS_OPEN = "OPEN";
+    public static final String RECONCILE_ISSUE_STATUS_RESOLVED = "RESOLVED";
+    public static final String RECONCILE_ISSUE_TYPE_ORDER_STATUS_MISMATCH = "ORDER_STATUS_MISMATCH";
+    public static final String RECONCILE_ORDER_STATUS_NOT_FOUND = "ORDER_NOT_FOUND";
 
     public static final String PAYMENT_SOURCE_PAYMENT_SERVICE = PaymentEventConstants.SOURCE_PAYMENT_SERVICE;
 
@@ -56,7 +65,8 @@ public final class PaymentConstants {
      */
     public static boolean isOrderConverged(String paymentStatus, String orderStatus) {
         if (PAYMENT_STATUS_SUCCESS.equals(paymentStatus)) {
-            return OrderStatusConstants.PAID.equals(orderStatus);
+            return OrderStatusConstants.PAID.equals(orderStatus)
+                    || OrderStatusConstants.COMPLETED.equals(orderStatus);
         }
         if (PAYMENT_STATUS_FAILED.equals(paymentStatus) || PAYMENT_STATUS_EXPIRED.equals(paymentStatus)) {
             return OrderStatusConstants.CANCELLED.equals(orderStatus);

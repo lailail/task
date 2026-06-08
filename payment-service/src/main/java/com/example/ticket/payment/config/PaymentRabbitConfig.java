@@ -38,6 +38,16 @@ public class PaymentRabbitConfig {
     }
 
     /**
+     * 声明支付收敛队列。
+     *
+     * @return 支付收敛队列
+     */
+    @Bean
+    public Queue paymentReconciledQueue() {
+        return new Queue(PaymentEventConstants.PAYMENT_RECONCILED_QUEUE, true);
+    }
+
+    /**
      * 绑定支付结果队列到交换机。
      *
      * @param paymentResultQueue 支付结果队列
@@ -49,6 +59,20 @@ public class PaymentRabbitConfig {
         return BindingBuilder.bind(paymentResultQueue)
                 .to(paymentEventExchange)
                 .with(PaymentEventConstants.PAYMENT_RESULT_ROUTING_KEY);
+    }
+
+    /**
+     * 绑定支付收敛队列到交换机。
+     *
+     * @param paymentReconciledQueue 支付收敛队列
+     * @param paymentEventExchange 支付结果交换机
+     * @return 绑定关系
+     */
+    @Bean
+    public Binding paymentReconciledBinding(Queue paymentReconciledQueue, DirectExchange paymentEventExchange) {
+        return BindingBuilder.bind(paymentReconciledQueue)
+                .to(paymentEventExchange)
+                .with(PaymentEventConstants.PAYMENT_RECONCILED_ROUTING_KEY);
     }
 
     /**

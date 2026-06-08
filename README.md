@@ -30,6 +30,8 @@
 - `Phase 6` 本地 baseline 压测脚本与首轮基线报告
 - JWT `accessToken + refreshToken` 正式登录链路
 - `gateway-service` 统一 JWT 验签与认证身份透传
+- `payment-service` 支付结果可靠消息补偿、支付对账异常内部查询
+- `ticket.payment.reconciled -> PAID/COMPLETED -> ticket.order.completed` 一致性终态链路
 
 当前已具备的关键能力：
 
@@ -47,6 +49,10 @@
 - 释放事件发送失败后的补偿任务登记、定时补发与发送状态收敛
 - 下单结果事件发送失败后的补偿任务登记、定时补发与发送状态收敛
 - 在保留分表前提下统一可靠消息发布模板、补发模板和任务状态常量
+- 支付对账异常沉淀与内部查询
+- 支付收敛事件发送失败后的补偿任务登记、定时补发与发送状态收敛
+- 订单完成事件发送失败后的补偿任务登记、定时补发与发送状态收敛
+- 订单 `PAID -> COMPLETED` 一致性终态收口
 
 ## 本地基础设施
 
@@ -68,6 +74,11 @@
 - `docker/mysql/init/030_stock_release_task.sql`
 - `docker/mysql/init/040_order_result_task.sql`
 - `docker/mysql/init/050_order_create_task.sql`
+- `docker/mysql/init/060_payment_record.sql`
+- `docker/mysql/init/070_payment_result_task.sql`
+- `docker/mysql/init/080_payment_reconcile_issue.sql`
+- `docker/mysql/init/090_payment_reconciled_task.sql`
+- `docker/mysql/init/100_order_complete_task.sql`
 
 ## 快速启动
 
@@ -125,6 +136,7 @@ docker compose config
 - 当前 `gateway-service` 已承担统一认证入口职责，支持匿名白名单、JWT 验签、清洗伪造身份头并向下游透传认证身份
 - 当前 `seckill-service` 已改为只信任网关透传身份，抢票请求体不再接受前端直传 `userId`
 - 当前仍保留 `stock_release_task` 与 `order_result_task` 两张物理任务表，暂未合并为统一消息表或事务外盒
+- 当前新增 `payment_result_task`、`payment_reconciled_task`、`order_complete_task` 三张任务表，继续沿用“分事件物理分表、代码模板统一”的策略
 - 当前已补齐 `Nacos` 的本地容器、地址变量、服务侧配置入口以及 `Nacos Discovery/Config` Starter
 - 当前默认仍通过 `TICKET_NACOS_DISCOVERY_ENABLED=false`、`TICKET_NACOS_CONFIG_ENABLED=false` 关闭治理能力，避免影响现有主链路
 - 当前已验证 `gateway-service`、`user-service`、`ticket-service` 可注册到 `Nacos`
@@ -167,6 +179,8 @@ docker compose config
 - 已补齐模拟支付结果落库、支付结果事件发布、订单主动取消和最小对账回查。
 - 当前支付域走最小闭环：
   - `payment-service` 记录支付事实
-  - 发送 `ticket.payment.result`
+  - 可靠发送 `ticket.payment.result`
   - `order-service` 收敛到 `PAID` / `CANCELLED`
-  - 未收敛记录由对账任务重发支付结果事件
+  - 未收敛记录由对账任务重发支付结果事件并沉淀 `payment_reconcile_issue`
+  - 收敛成功后可靠发送 `ticket.payment.reconciled`
+  - `order-service` 推进到 `COMPLETED` 并可靠发送 `ticket.order.completed`

@@ -11,10 +11,13 @@ public final class OrderEventConstants {
 
     public static final String ORDER_RESULT_QUEUE = "ticket.order.result.queue";
     public static final String ORDER_RESULT_ROUTING_KEY = "ticket.order.result";
+    public static final String ORDER_COMPLETED_QUEUE = "ticket.order.completed.queue";
+    public static final String ORDER_COMPLETED_ROUTING_KEY = "ticket.order.completed";
 
     public static final String ORDER_CREATE_REQUESTED = "ORDER_CREATE_REQUESTED";
     public static final String ORDER_CREATED = "ORDER_CREATED";
     public static final String ORDER_CREATE_FAILED = "ORDER_CREATE_FAILED";
+    public static final String ORDER_COMPLETED = "ORDER_COMPLETED";
 
     public static final String SOURCE_SECKILL_SERVICE = "SECKILL_SERVICE";
     public static final String SOURCE_ORDER_SERVICE = "ORDER_SERVICE";
