@@ -3,6 +3,8 @@ package com.example.ticket.payment.gateway.impl;
 import com.example.ticket.common.response.ApiResponse;
 import com.example.ticket.payment.gateway.OrderStatusQueryGateway;
 import com.example.ticket.payment.gateway.dto.OrderStatusDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -15,6 +17,8 @@ import org.springframework.web.client.RestClientException;
  */
 @Component
 public class RestOrderStatusQueryGateway implements OrderStatusQueryGateway {
+    private static final Logger log = LoggerFactory.getLogger(RestOrderStatusQueryGateway.class);
+
     private final RestClient restClient;
     private final String orderStatusPath;
 
@@ -48,9 +52,15 @@ public class RestOrderStatusQueryGateway implements OrderStatusQueryGateway {
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
-            return response == null ? null : response.getData();
+            if (response == null || response.getData() == null) {
+                log.warn("订单状态回查返回空结果，orderId={}", orderId);
+                return null;
+            }
+            log.debug("订单状态回查成功，orderId={}, orderStatus={}", orderId, response.getData().getOrderStatus());
+            return response.getData();
         } catch (RestClientException exception) {
             // 对账场景允许订单域暂时不可用，后续由下次调度继续重试。
+            log.warn("订单状态回查失败，orderId={}, errorMessage={}", orderId, exception.getMessage());
             return null;
         }
     }

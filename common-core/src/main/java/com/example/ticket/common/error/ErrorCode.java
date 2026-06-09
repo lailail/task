@@ -21,6 +21,7 @@ public enum ErrorCode {
     PAYMENT_RECORD_NOT_FOUND(5001, "payment record not found"),
     PAYMENT_STATUS_INVALID(5002, "payment status invalid"),
     PAYMENT_RECONCILE_ISSUE_NOT_FOUND(5003, "payment reconcile issue not found"),
+    PAYMENT_RECONCILE_ISSUE_STATUS_INVALID(5004, "payment reconcile issue status invalid"),
     SECKILL_ACTIVITY_NOT_FOUND(3001, "seckill activity not found"),
     SECKILL_ACTIVITY_NOT_ON_SALE(3002, "seckill activity not on sale"),
     SECKILL_DUPLICATE_REQUEST(3003, "duplicate seckill request"),

@@ -9,6 +9,7 @@ import com.example.ticket.seckill.domain.ReservationDO;
 import com.example.ticket.seckill.dto.SeckillActivityDTO;
 import com.example.ticket.seckill.gateway.OrderCreateEventPublisher;
 import com.example.ticket.seckill.gateway.StockReservationGateway;
+import com.example.ticket.seckill.gateway.model.StockRollbackResult;
 import com.example.ticket.seckill.gateway.model.StockReserveCommand;
 import com.example.ticket.seckill.gateway.model.StockReserveResult;
 import com.example.ticket.seckill.repository.ReservationRecordRepository;
@@ -17,6 +18,8 @@ import com.example.ticket.seckill.request.SeckillReserveRequest;
 import com.example.ticket.seckill.response.SeckillReserveResponse;
 import com.example.ticket.seckill.service.SeckillService;
 import com.example.ticket.seckill.support.SeckillConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +32,8 @@ import java.util.UUID;
  */
 @Service
 public class SeckillServiceImpl implements SeckillService {
+    private static final Logger log = LoggerFactory.getLogger(SeckillServiceImpl.class);
+
     private final SeckillActivityRepository activityRepository;
     private final StockReservationGateway stockReservationGateway;
     private final ReservationRecordRepository reservationRecordRepository;
@@ -68,15 +73,41 @@ public class SeckillServiceImpl implements SeckillService {
     @Override
     public SeckillReserveResponse reserve(AuthenticatedUser authenticatedUser, SeckillReserveRequest request) {
         SeckillActivityDTO activity = activityRepository.findByActivityIdAndTicketId(request.getActivityId(), request.getTicketId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.SECKILL_ACTIVITY_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.warn(
+                            "抢票预扣请求命中不存在的活动，requestId={}, userId={}, activityId={}, ticketId={}",
+                            request.getRequestId(),
+                            authenticatedUser.getUserId(),
+                            request.getActivityId(),
+                            request.getTicketId()
+                    );
+                    return new BusinessException(ErrorCode.SECKILL_ACTIVITY_NOT_FOUND);
+                });
 
         if (!SeckillConstants.SALE_STATUS_ON_SALE.equals(activity.getSaleStatus())) {
+            log.warn(
+                    "抢票预扣请求命中未开售活动，requestId={}, userId={}, activityId={}, ticketId={}, saleStatus={}",
+                    request.getRequestId(),
+                    authenticatedUser.getUserId(),
+                    request.getActivityId(),
+                    request.getTicketId(),
+                    activity.getSaleStatus()
+            );
             throw new BusinessException(ErrorCode.SECKILL_ACTIVITY_NOT_ON_SALE);
         }
 
         ReservationDO reservation = buildReservation(authenticatedUser, request);
         StockReserveResult reserveResult = stockReservationGateway.reserve(buildStockReserveCommand(reservation));
         if (!SeckillConstants.RESERVE_RESULT_SUCCESS.equals(reserveResult.getResultCode())) {
+            log.warn(
+                    "抢票预扣被缓存层拦截，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}, resultCode={}",
+                    reservation.getRequestId(),
+                    reservation.getUserId(),
+                    reservation.getActivityId(),
+                    reservation.getTicketId(),
+                    reservation.getReservationId(),
+                    reserveResult.getResultCode()
+            );
             throw mapReserveException(reserveResult);
         }
 
@@ -85,10 +116,24 @@ public class SeckillServiceImpl implements SeckillService {
         reservation.setOccurredAt(reserveResult.getOccurredAt());
         reservation.setExpireAt(reserveResult.getExpireAt());
 
-        // 当前阶段先保证“没有正式预扣记录就不发下单消息”，避免订单成功后 job-service 无法确认预扣状态。
-        // 这里仍然存在 Redis 已预扣但数据库落库失败的一致性空窗，当前接受该过渡实现，并通过后续回查补偿继续收敛。
-        reservationRecordRepository.save(reservation);
+        // 只有正式预扣记录落库成功后才允许继续发起下单。
+        // 如果这里失败，必须立即回滚 Redis 预扣，避免留下“缓存已扣、数据库无事实”的一致性空窗。
+        try {
+            reservationRecordRepository.save(reservation);
+        } catch (RuntimeException exception) {
+            rollbackReservedStock(reservation, exception);
+            throw exception;
+        }
         orderCreateEventPublisher.publish(buildOrderCreateEvent(reservation));
+        log.info(
+                "抢票预扣成功并已发送下单事件，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}, expireAt={}",
+                reservation.getRequestId(),
+                reservation.getUserId(),
+                reservation.getActivityId(),
+                reservation.getTicketId(),
+                reservation.getReservationId(),
+                reservation.getExpireAt()
+        );
         return buildReserveResponse(reservation);
     }
 
@@ -186,5 +231,65 @@ public class SeckillServiceImpl implements SeckillService {
         response.setStatus(reservation.getStatus());
         response.setExpireAt(reservation.getExpireAt());
         return response;
+    }
+
+    /**
+     * 在正式预扣记录落库失败时立即回滚 Redis 预扣。
+     *
+     * @param reservation 预扣记录
+     * @param exception 原始异常
+     */
+    private void rollbackReservedStock(ReservationDO reservation, RuntimeException exception) {
+        try {
+            StockRollbackResult rollbackResult = stockReservationGateway.rollbackReservation(
+                    buildStockReserveCommand(reservation)
+            );
+            if (rollbackResult == null) {
+                log.error(
+                        "预扣落库失败后回滚 Redis 预扣返回空结果，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}",
+                        reservation.getRequestId(),
+                        reservation.getUserId(),
+                        reservation.getActivityId(),
+                        reservation.getTicketId(),
+                        reservation.getReservationId(),
+                        exception
+                );
+                return;
+            }
+            if (SeckillConstants.ROLLBACK_RESULT_SUCCESS.equals(rollbackResult.getResultCode())
+                    || SeckillConstants.ROLLBACK_RESULT_ALREADY_RELEASED.equals(rollbackResult.getResultCode())) {
+                log.warn(
+                        "预扣落库失败后已回滚 Redis 预扣，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}, rollbackResult={}",
+                        reservation.getRequestId(),
+                        reservation.getUserId(),
+                        reservation.getActivityId(),
+                        reservation.getTicketId(),
+                        reservation.getReservationId(),
+                        rollbackResult.getResultCode(),
+                        exception
+                );
+                return;
+            }
+            log.error(
+                    "预扣落库失败后回滚 Redis 预扣未成功，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}, rollbackResult={}",
+                    reservation.getRequestId(),
+                    reservation.getUserId(),
+                    reservation.getActivityId(),
+                    reservation.getTicketId(),
+                    reservation.getReservationId(),
+                    rollbackResult.getResultCode(),
+                    exception
+            );
+        } catch (RuntimeException rollbackException) {
+            log.error(
+                    "预扣落库失败后回滚 Redis 预扣再次抛错，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}",
+                    reservation.getRequestId(),
+                    reservation.getUserId(),
+                    reservation.getActivityId(),
+                    reservation.getTicketId(),
+                    reservation.getReservationId(),
+                    rollbackException
+            );
+        }
     }
 }

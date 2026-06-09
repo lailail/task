@@ -10,6 +10,8 @@ import com.example.ticket.job.gateway.StockReleaseEventPublisher;
 import com.example.ticket.job.mapper.JobTicketOrderMapper;
 import com.example.ticket.job.service.OrderTimeoutCloseService;
 import com.example.ticket.job.support.JobConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,7 @@ import java.util.UUID;
  */
 @Service
 public class OrderTimeoutCloseServiceImpl implements OrderTimeoutCloseService {
+    private static final Logger log = LoggerFactory.getLogger(OrderTimeoutCloseServiceImpl.class);
     private static final long FIRST_PAGE_NO = 1L;
 
     private final JobTicketOrderMapper jobTicketOrderMapper;
@@ -68,6 +71,7 @@ public class OrderTimeoutCloseServiceImpl implements OrderTimeoutCloseService {
     @Transactional
     public void closeExpiredOrders(LocalDateTime currentTime) {
         List<JobTicketOrderDO> expiredOrders = loadExpiredOrders(currentTime);
+        log.info("开始扫描超时订单，closeTime={}, batchSize={}, actualSize={}", currentTime, closeBatchSize, expiredOrders.size());
         for (JobTicketOrderDO expiredOrder : expiredOrders) {
             closeSingleExpiredOrder(expiredOrder, currentTime);
         }
@@ -106,10 +110,12 @@ public class OrderTimeoutCloseServiceImpl implements OrderTimeoutCloseService {
 
         // 只有仍处于 CREATED 的订单才允许被当前批次关单，避免并发调度覆盖其他状态流转。
         if (jobTicketOrderMapper.update(updateTarget, updateWrapper) <= 0) {
+            log.warn("超时关单命中并发竞争，跳过当前订单，orderId={}, reservationId={}, requestId={}", order.getOrderId(), order.getReservationId(), order.getRequestId());
             return;
         }
 
         publishAfterCommit(buildTimeoutReleaseEvent(order));
+        log.info("超时订单已关闭并准备发布库存释放事件，orderId={}, reservationId={}, requestId={}", order.getOrderId(), order.getReservationId(), order.getRequestId());
     }
 
     /**
@@ -144,6 +150,7 @@ public class OrderTimeoutCloseServiceImpl implements OrderTimeoutCloseService {
      */
     private void publishAfterCommit(StockReleaseEvent event) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            log.info("库存释放事件直接发布，eventType={}, orderId={}, reservationId={}, requestId={}", event.getEventType(), event.getOrderId(), event.getReservationId(), event.getRequestId());
             stockReleaseEventPublisher.publish(event);
             return;
         }
@@ -153,6 +160,7 @@ public class OrderTimeoutCloseServiceImpl implements OrderTimeoutCloseService {
              */
             @Override
             public void afterCommit() {
+                log.info("库存释放事件在事务提交后发布，eventType={}, orderId={}, reservationId={}, requestId={}", event.getEventType(), event.getOrderId(), event.getReservationId(), event.getRequestId());
                 stockReleaseEventPublisher.publish(event);
             }
         });

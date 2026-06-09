@@ -26,8 +26,12 @@ public final class PaymentConstants {
     public static final String PAYMENT_RECONCILED_TASK_STATUS_EXHAUSTED = ReliableMessageTaskStatus.EXHAUSTED;
     public static final String RECONCILE_ISSUE_STATUS_OPEN = "OPEN";
     public static final String RECONCILE_ISSUE_STATUS_RESOLVED = "RESOLVED";
+    public static final String RECONCILE_ISSUE_STATUS_IGNORED = "IGNORED";
     public static final String RECONCILE_ISSUE_TYPE_ORDER_STATUS_MISMATCH = "ORDER_STATUS_MISMATCH";
     public static final String RECONCILE_ORDER_STATUS_NOT_FOUND = "ORDER_NOT_FOUND";
+    public static final String RECONCILE_MANUAL_ACTION_RETRY = "MANUAL_RETRY";
+    public static final String RECONCILE_MANUAL_ACTION_IGNORE = "MANUAL_IGNORE";
+    public static final String RECONCILE_MANUAL_ACTION_RESOLVE = "MANUAL_RESOLVE";
 
     public static final String PAYMENT_SOURCE_PAYMENT_SERVICE = PaymentEventConstants.SOURCE_PAYMENT_SERVICE;
 

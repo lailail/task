@@ -9,6 +9,8 @@ import com.example.ticket.order.service.OrderCancelService;
 import com.example.ticket.order.service.OrderQueryService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1")
 public class OrderController {
+    private static final Logger log = LoggerFactory.getLogger(OrderController.class);
+
     private final OrderCancelService orderCancelService;
     private final OrderQueryService orderQueryService;
 
@@ -53,7 +57,9 @@ public class OrderController {
     ) {
         AuthenticatedUser authenticatedUser =
                 AuthenticatedUserHeaderSupport.extractAuthenticatedUser(httpServletRequest);
+        log.info("收到取消订单请求，requestId={}, orderId={}, userId={}, reason={}", request.getRequestId(), orderId, authenticatedUser.getUserId(), request.getReason());
         orderCancelService.cancelOrder(authenticatedUser, orderId, request);
+        log.info("取消订单请求处理完成，requestId={}, orderId={}, userId={}", request.getRequestId(), orderId, authenticatedUser.getUserId());
         return ApiResponse.success(null);
     }
 
@@ -65,6 +71,9 @@ public class OrderController {
      */
     @GetMapping("/internal/orders/{orderId}/status")
     public ApiResponse<OrderStatusResponse> queryOrderStatus(@PathVariable Long orderId) {
-        return ApiResponse.success(orderQueryService.queryOrderStatus(orderId));
+        log.info("收到订单状态查询请求，orderId={}", orderId);
+        OrderStatusResponse response = orderQueryService.queryOrderStatus(orderId);
+        log.info("订单状态查询完成，orderId={}, orderStatus={}", orderId, response.getOrderStatus());
+        return ApiResponse.success(response);
     }
 }

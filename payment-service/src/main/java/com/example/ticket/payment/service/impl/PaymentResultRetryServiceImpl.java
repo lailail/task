@@ -7,6 +7,8 @@ import com.example.ticket.payment.gateway.PaymentResultMessageSender;
 import com.example.ticket.payment.gateway.impl.MybatisPaymentResultTaskStore;
 import com.example.ticket.payment.service.PaymentResultRetryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 public class PaymentResultRetryServiceImpl
         extends AbstractReliableMessageRetryService<PaymentResultEvent, PaymentResultTaskDO>
         implements PaymentResultRetryService {
+    private static final Logger log = LoggerFactory.getLogger(PaymentResultRetryServiceImpl.class);
 
     /**
      * 构造支付结果补发服务。
@@ -48,6 +51,7 @@ public class PaymentResultRetryServiceImpl
      */
     @Override
     public void retryDueTasks() {
+        log.debug("支付结果补发服务开始执行默认时间补发扫描");
         super.retryDueTasks();
     }
 
@@ -58,6 +62,7 @@ public class PaymentResultRetryServiceImpl
      */
     @Override
     public void retryDueTasks(LocalDateTime currentTime) {
+        log.debug("支付结果补发服务开始执行指定时间补发扫描，scanTime={}", currentTime);
         super.retryDueTasks(currentTime);
     }
 

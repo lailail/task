@@ -2,6 +2,8 @@ package com.example.ticket.common.reliable;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,6 +16,8 @@ import java.util.List;
  * @param <TTask> 任务类型
  */
 public abstract class AbstractReliableMessageRetryService<TEvent, TTask extends ReliableMessageTask> {
+    private static final Logger log = LoggerFactory.getLogger(AbstractReliableMessageRetryService.class);
+
     private final ReliableMessageTaskStore<TTask> taskStore;
     private final ReliableMessageSender<TEvent> messageSender;
     private final ObjectMapper objectMapper;
@@ -69,6 +73,7 @@ public abstract class AbstractReliableMessageRetryService<TEvent, TTask extends 
                 currentTime,
                 retryBatchSize
         );
+        log.info("开始扫描可靠消息补发任务，scanTime={}, batchSize={}, actualSize={}", currentTime, retryBatchSize, dueTasks.size());
         for (TTask dueTask : dueTasks) {
             retrySingleTask(dueTask, currentTime);
         }
@@ -92,6 +97,15 @@ public abstract class AbstractReliableMessageRetryService<TEvent, TTask extends 
         try {
             messageSender.send(deserializeEvent(task.getPayloadJson()));
             markSent(task.getTaskId(), currentTime);
+            log.info(
+                    "可靠消息补发成功，taskId={}, eventType={}, eventKey={}, businessKey={}, retryCount={}, sentAt={}",
+                    task.getTaskId(),
+                    task.getEventType(),
+                    task.getEventKey(),
+                    task.getBusinessKey(),
+                    safeRetryCount(task.getRetryCount()),
+                    currentTime
+            );
         } catch (RuntimeException exception) {
             markRetryFailed(task, currentTime, exception);
         }
@@ -136,17 +150,39 @@ public abstract class AbstractReliableMessageRetryService<TEvent, TTask extends 
      */
     protected void markRetryFailed(TTask task, LocalDateTime currentTime, RuntimeException exception) {
         int nextRetryCount = safeRetryCount(task.getRetryCount()) + 1;
+        int maxRetryCount = safeMaxRetryCount(task.getMaxRetryCount());
         TTask updateTarget = createTask();
         updateTarget.setTaskId(task.getTaskId());
         updateTarget.setRetryCount(nextRetryCount);
         updateTarget.setLastErrorMessage(exception.getMessage());
 
-        if (nextRetryCount >= safeMaxRetryCount(task.getMaxRetryCount())) {
+        if (nextRetryCount >= maxRetryCount) {
             updateTarget.setTaskStatus(ReliableMessageTaskStatus.EXHAUSTED);
             updateTarget.setNextRetryAt(null);
+            log.error(
+                    "可靠消息补发次数已耗尽，taskId={}, eventType={}, eventKey={}, businessKey={}, retryCount={}, maxRetryCount={}, errorMessage={}",
+                    task.getTaskId(),
+                    task.getEventType(),
+                    task.getEventKey(),
+                    task.getBusinessKey(),
+                    nextRetryCount,
+                    maxRetryCount,
+                    exception.getMessage()
+            );
         } else {
             updateTarget.setTaskStatus(ReliableMessageTaskStatus.RETRYING);
             updateTarget.setNextRetryAt(currentTime.plusSeconds(retryIntervalSeconds));
+            log.warn(
+                    "可靠消息补发失败，等待下一轮重试，taskId={}, eventType={}, eventKey={}, businessKey={}, retryCount={}, maxRetryCount={}, nextRetryAt={}, errorMessage={}",
+                    task.getTaskId(),
+                    task.getEventType(),
+                    task.getEventKey(),
+                    task.getBusinessKey(),
+                    nextRetryCount,
+                    maxRetryCount,
+                    updateTarget.getNextRetryAt(),
+                    exception.getMessage()
+            );
         }
         taskStore.updateById(updateTarget);
     }

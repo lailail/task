@@ -1,6 +1,8 @@
 package com.example.ticket.job.support;
 
 import com.example.ticket.job.service.OrderTimeoutCloseService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class OrderTimeoutCloseScheduler {
+    private static final Logger log = LoggerFactory.getLogger(OrderTimeoutCloseScheduler.class);
+
     private final OrderTimeoutCloseService orderTimeoutCloseService;
 
     /**
@@ -34,6 +38,7 @@ public class OrderTimeoutCloseScheduler {
      * 提供独立方法是为了让测试可以直接验证委托关系，而不依赖真实调度器。
      */
     public void runOnce() {
+        log.info("触发超时关单扫描");
         orderTimeoutCloseService.closeExpiredOrders();
     }
 }

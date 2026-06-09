@@ -1,10 +1,13 @@
 package com.example.ticket.seckill.gateway.impl;
 
 import com.example.ticket.seckill.gateway.StockReservationGateway;
+import com.example.ticket.seckill.gateway.model.StockRollbackResult;
 import com.example.ticket.seckill.gateway.model.StockReserveCommand;
 import com.example.ticket.seckill.gateway.model.StockReserveResult;
 import com.example.ticket.seckill.support.SeckillConstants;
 import com.example.ticket.seckill.support.SeckillRedisKeySupport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -19,8 +22,11 @@ import java.util.List;
  */
 @Component
 public class RedisStockReservationGateway implements StockReservationGateway {
+    private static final Logger log = LoggerFactory.getLogger(RedisStockReservationGateway.class);
+
     private final StringRedisTemplate stringRedisTemplate;
     private final DefaultRedisScript<List> reserveScript;
+    private final DefaultRedisScript<List> rollbackScript;
 
     /**
      * 构造 Redis 库存预扣网关。
@@ -30,10 +36,12 @@ public class RedisStockReservationGateway implements StockReservationGateway {
      */
     public RedisStockReservationGateway(
             StringRedisTemplate stringRedisTemplate,
-            @Qualifier("reserveStockRedisScript") DefaultRedisScript<List> reserveScript
+            @Qualifier("reserveStockRedisScript") DefaultRedisScript<List> reserveScript,
+            @Qualifier("rollbackReserveStockRedisScript") DefaultRedisScript<List> rollbackScript
     ) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.reserveScript = reserveScript;
+        this.rollbackScript = rollbackScript;
     }
 
     /**
@@ -65,12 +73,81 @@ public class RedisStockReservationGateway implements StockReservationGateway {
                 command.getRequestId(),
                 String.valueOf(command.getExpireSeconds())
         );
+        if (result == null || result.isEmpty()) {
+            log.error(
+                    "Redis 预扣脚本返回空结果，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}, idempotencyKey={}",
+                    command.getRequestId(),
+                    command.getUserId(),
+                    command.getActivityId(),
+                    command.getTicketId(),
+                    command.getReservationId(),
+                    command.getIdempotencyKey()
+            );
+            return StockReserveResult.failure(SeckillConstants.RESERVE_RESULT_FAILED, null);
+        }
 
         String resultCode = String.valueOf(result.get(0));
+        log.info(
+                "Redis 预扣脚本执行完成，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}, idempotencyKey={}, resultCode={}",
+                command.getRequestId(),
+                command.getUserId(),
+                command.getActivityId(),
+                command.getTicketId(),
+                command.getReservationId(),
+                command.getIdempotencyKey(),
+                resultCode
+        );
         if (SeckillConstants.RESERVE_RESULT_SUCCESS.equals(resultCode)) {
             Instant expireAt = Instant.ofEpochSecond(Long.parseLong(String.valueOf(result.get(1))));
             return StockReserveResult.success(command.getReservationId(), Instant.now(), expireAt);
         }
         return StockReserveResult.failure(resultCode, null);
+    }
+
+    /**
+     * 在正式预扣记录落库失败时回滚 Redis 预扣。
+     *
+     * @param command 预扣命令
+     * @return 回滚结果
+     */
+    @Override
+    public StockRollbackResult rollbackReservation(StockReserveCommand command) {
+        List<String> keys = List.of(
+                SeckillRedisKeySupport.buildStockKey(command.getActivityId(), command.getTicketId()),
+                SeckillRedisKeySupport.buildUserOrderKey(command.getActivityId(), command.getUserId()),
+                SeckillRedisKeySupport.buildReservationKey(command.getReservationId()),
+                SeckillRedisKeySupport.buildIdempotentKey(command.getIdempotencyKey())
+        );
+
+        List result = stringRedisTemplate.execute(
+                rollbackScript,
+                keys,
+                String.valueOf(command.getQuantity()),
+                command.getReservationId()
+        );
+        if (result == null || result.isEmpty()) {
+            log.error(
+                    "Redis 预扣回滚脚本返回空结果，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}, idempotencyKey={}",
+                    command.getRequestId(),
+                    command.getUserId(),
+                    command.getActivityId(),
+                    command.getTicketId(),
+                    command.getReservationId(),
+                    command.getIdempotencyKey()
+            );
+            return StockRollbackResult.of(SeckillConstants.ROLLBACK_RESULT_FAILED);
+        }
+        String resultCode = String.valueOf(result.get(0));
+        log.info(
+                "Redis 预扣回滚脚本执行完成，requestId={}, userId={}, activityId={}, ticketId={}, reservationId={}, idempotencyKey={}, resultCode={}",
+                command.getRequestId(),
+                command.getUserId(),
+                command.getActivityId(),
+                command.getTicketId(),
+                command.getReservationId(),
+                command.getIdempotencyKey(),
+                resultCode
+        );
+        return StockRollbackResult.of(resultCode);
     }
 }

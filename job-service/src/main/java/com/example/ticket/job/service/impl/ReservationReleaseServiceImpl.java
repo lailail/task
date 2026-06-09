@@ -6,6 +6,8 @@ import com.example.ticket.job.gateway.StockReleaseGateway;
 import com.example.ticket.job.mapper.JobReservationRecordMapper;
 import com.example.ticket.job.service.ReservationReleaseService;
 import com.example.ticket.job.support.JobConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,7 @@ import java.time.LocalDateTime;
  */
 @Service
 public class ReservationReleaseServiceImpl implements ReservationReleaseService {
+    private static final Logger log = LoggerFactory.getLogger(ReservationReleaseServiceImpl.class);
     private final JobReservationRecordMapper reservationRecordMapper;
     private final StockReleaseGateway stockReleaseGateway;
 
@@ -44,18 +47,22 @@ public class ReservationReleaseServiceImpl implements ReservationReleaseService 
     public void handleStockRelease(StockReleaseEvent event) {
         JobReservationRecordDO record = reservationRecordMapper.selectById(event.getReservationId());
         if (record == null) {
+            log.warn("库存释放未找到预扣记录，eventId={}, reservationId={}, orderId={}, requestId={}", event.getEventId(), event.getReservationId(), event.getOrderId(), event.getRequestId());
             return;
         }
         if (!canRelease(record)) {
+            log.warn("库存释放跳过非法状态记录，eventId={}, reservationId={}, currentStatus={}", event.getEventId(), event.getReservationId(), record.getReservationStatus());
             return;
         }
         if (!stockReleaseGateway.release(event)) {
+            log.warn("库存释放网关执行失败，eventId={}, reservationId={}, orderId={}, requestId={}", event.getEventId(), event.getReservationId(), event.getOrderId(), event.getRequestId());
             return;
         }
         record.setReservationStatus(JobConstants.RESERVATION_STATUS_RELEASED);
         record.setReason(event.getReason());
         record.setReleasedAt(LocalDateTime.now());
         reservationRecordMapper.updateById(record);
+        log.info("库存释放已完成并更新预扣状态，eventId={}, reservationId={}, orderId={}, requestId={}", event.getEventId(), event.getReservationId(), event.getOrderId(), event.getRequestId());
     }
 
     /**

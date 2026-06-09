@@ -1,6 +1,8 @@
 package com.example.ticket.payment.support;
 
 import com.example.ticket.payment.service.PaymentResultRetryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class PaymentResultRetryScheduler {
+    private static final Logger log = LoggerFactory.getLogger(PaymentResultRetryScheduler.class);
+
     private final PaymentResultRetryService paymentResultRetryService;
 
     /**
@@ -26,6 +30,7 @@ public class PaymentResultRetryScheduler {
      */
     @Scheduled(cron = "${ticket.payment.result-retry-cron}")
     public void retryDueTasks() {
+        log.info("触发支付结果补发扫描");
         paymentResultRetryService.retryDueTasks();
     }
 }

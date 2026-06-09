@@ -6,6 +6,8 @@ import com.example.ticket.order.domain.OrderResultTaskDO;
 import com.example.ticket.order.gateway.OrderCreateResultEventPublisher;
 import com.example.ticket.order.gateway.OrderCreateResultMessageSender;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReliableOrderCreateResultEventPublisher
         extends AbstractReliableMessagePublisher<OrderCreateResultEvent, OrderResultTaskDO>
         implements OrderCreateResultEventPublisher {
+    private static final Logger log = LoggerFactory.getLogger(ReliableOrderCreateResultEventPublisher.class);
 
     /**
      * 构造可靠下单结果事件发布器。
@@ -47,6 +50,14 @@ public class ReliableOrderCreateResultEventPublisher
     @Override
     @Transactional
     public void publish(OrderCreateResultEvent event) {
+        log.debug(
+                "收到可靠下单结果事件发布请求，eventId={}, eventType={}, reservationId={}, orderId={}, requestId={}",
+                event.getEventId(),
+                event.getEventType(),
+                event.getReservationId(),
+                event.getOrderId(),
+                event.getRequestId()
+        );
         super.publish(event);
     }
 

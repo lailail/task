@@ -23,4 +23,12 @@ public interface PaymentProcessService {
      * @param now 当前时间
      */
     void reconcilePendingPayments(LocalDateTime now);
+
+    /**
+     * 对指定支付请求执行一次定向对账回查。
+     *
+     * @param paymentRequestId 支付请求标识
+     * @param now 当前时间
+     */
+    void reconcilePaymentRequest(String paymentRequestId, LocalDateTime now);
 }

@@ -37,4 +37,25 @@ public class SeckillLuaScriptConfig {
         ));
         return script;
     }
+
+    /**
+     * 装配预扣落库失败后的回滚脚本 Bean。
+     *
+     * @param properties Lua 脚本配置属性
+     * @param resourceLoader Spring 资源加载器
+     * @return 可执行的 Redis Lua 脚本对象
+     */
+    @Bean("rollbackReserveStockRedisScript")
+    public DefaultRedisScript<List> rollbackReserveStockRedisScript(
+            SeckillLuaScriptProperties properties,
+            ResourceLoader resourceLoader
+    ) {
+        DefaultRedisScript<List> script = new DefaultRedisScript<>();
+        script.setResultType(List.class);
+        // 回滚脚本也统一走资源加载，避免把补偿逻辑硬编码在 Java 业务类中。
+        script.setScriptSource(new ResourceScriptSource(
+                resourceLoader.getResource(properties.getRollbackScriptLocation())
+        ));
+        return script;
+    }
 }

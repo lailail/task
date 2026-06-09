@@ -11,6 +11,8 @@ import com.example.ticket.job.mapper.JobReservationRecordMapper;
 import com.example.ticket.job.mapper.JobTicketOrderMapper;
 import com.example.ticket.job.service.ReservationRecheckService;
 import com.example.ticket.job.support.JobConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +27,7 @@ import java.util.UUID;
  */
 @Service
 public class ReservationRecheckServiceImpl implements ReservationRecheckService {
+    private static final Logger log = LoggerFactory.getLogger(ReservationRecheckServiceImpl.class);
     private static final long FIRST_PAGE_NO = 1L;
 
     private final JobReservationRecordMapper reservationRecordMapper;
@@ -68,6 +71,7 @@ public class ReservationRecheckServiceImpl implements ReservationRecheckService 
     @Override
     public void recheckExpiredReservations(LocalDateTime currentTime) {
         List<JobReservationRecordDO> records = loadExpiredReservations(currentTime);
+        log.info("开始扫描超时未收敛预扣记录，recheckTime={}, batchSize={}, actualSize={}", currentTime, recheckBatchSize, records.size());
         for (JobReservationRecordDO record : records) {
             recheckSingleReservation(record);
         }
@@ -102,12 +106,16 @@ public class ReservationRecheckServiceImpl implements ReservationRecheckService 
     private void recheckSingleReservation(JobReservationRecordDO record) {
         JobTicketOrderDO order = loadOrderByReservationId(record.getReservationId());
         if (shouldReleaseReservedWithoutOrder(record, order)) {
+            log.warn("预扣回查发现无订单事实，准备补发建单失败释放事件，reservationId={}, requestId={}, idempotencyKey={}", record.getReservationId(), record.getRequestId(), record.getIdempotencyKey());
             stockReleaseEventPublisher.publish(buildCreateFailedReleaseEvent(record));
             return;
         }
         if (shouldReleaseClosedConfirmedOrder(record, order)) {
+            log.warn("预扣回查发现订单已关闭但未释放，准备补发超时释放事件，reservationId={}, orderId={}, requestId={}", record.getReservationId(), order.getOrderId(), record.getRequestId());
             stockReleaseEventPublisher.publish(buildTimeoutReleaseEvent(record, order));
+            return;
         }
+        log.debug("预扣回查未发现需要补偿的记录，reservationId={}, currentStatus={}, orderId={}", record.getReservationId(), record.getReservationStatus(), order == null ? null : order.getOrderId());
     }
 
     /**

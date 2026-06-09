@@ -6,6 +6,8 @@ import com.example.ticket.order.domain.TicketOrderDO;
 import com.example.ticket.order.mapper.TicketOrderMapper;
 import com.example.ticket.order.response.OrderStatusResponse;
 import com.example.ticket.order.service.OrderQueryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class OrderQueryServiceImpl implements OrderQueryService {
+    private static final Logger log = LoggerFactory.getLogger(OrderQueryServiceImpl.class);
+
     private final TicketOrderMapper ticketOrderMapper;
 
     /**
@@ -37,11 +41,13 @@ public class OrderQueryServiceImpl implements OrderQueryService {
     public OrderStatusResponse queryOrderStatus(Long orderId) {
         TicketOrderDO order = ticketOrderMapper.selectById(orderId);
         if (order == null) {
+            log.warn("订单状态查询未命中，orderId={}", orderId);
             throw new BusinessException(ErrorCode.ORDER_NOT_FOUND);
         }
         OrderStatusResponse response = new OrderStatusResponse();
         response.setOrderId(order.getOrderId());
         response.setOrderStatus(order.getOrderStatus());
+        log.debug("订单状态查询返回结果，orderId={}, orderStatus={}", orderId, order.getOrderStatus());
         return response;
     }
 }

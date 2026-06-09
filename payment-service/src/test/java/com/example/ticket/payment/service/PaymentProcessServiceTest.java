@@ -3,6 +3,8 @@ package com.example.ticket.payment.service;
 import com.example.ticket.common.event.payment.PaymentEventConstants;
 import com.example.ticket.common.event.payment.PaymentReconciledEvent;
 import com.example.ticket.common.event.payment.PaymentResultEvent;
+import com.example.ticket.common.error.BusinessException;
+import com.example.ticket.common.error.ErrorCode;
 import com.example.ticket.payment.domain.PaymentRecordDO;
 import com.example.ticket.payment.domain.PaymentReconcileIssueDO;
 import com.example.ticket.payment.gateway.PaymentResultEventPublisher;
@@ -20,12 +22,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -36,6 +42,7 @@ import static org.mockito.Mockito.when;
  * 用于固定“模拟支付结果落库、发布支付结果事件、对账不一致时重发”的核心边界。
  */
 @ExtendWith(MockitoExtension.class)
+@ExtendWith(OutputCaptureExtension.class)
 class PaymentProcessServiceTest {
 
     @Mock
@@ -86,6 +93,22 @@ class PaymentProcessServiceTest {
         verify(paymentResultEventPublisher).publish(eventCaptor.capture());
         assertEquals(PaymentEventConstants.PAYMENT_SUCCEEDED, eventCaptor.getValue().getEventType());
         assertEquals(20001L, eventCaptor.getValue().getOrderId());
+    }
+
+    /**
+     * 重复支付通知命中已有支付事实时，应记录关键日志并直接忽略。
+     */
+    @Test
+    void should_log_when_duplicate_payment_notify_is_ignored(CapturedOutput output) {
+        PaymentNotifyRequest request = buildNotifyRequest(PaymentEventConstants.PAYMENT_SUCCEEDED);
+        when(paymentRecordMapper.selectOne(any())).thenReturn(buildSuccessPaymentRecord());
+
+        paymentProcessService.recordPaymentResult(request);
+
+        verify(paymentRecordMapper, never()).insert(any(PaymentRecordDO.class));
+        verify(paymentResultEventPublisher, never()).publish(any(PaymentResultEvent.class));
+        assertTrue(output.getOut().contains("重复支付通知已忽略"));
+        assertTrue(output.getOut().contains("paymentRequestId=payment-req-001"));
     }
 
     /**
@@ -195,6 +218,51 @@ class PaymentProcessServiceTest {
         paymentProcessService.reconcilePendingPayments(now);
 
         verify(paymentReconcileIssueMapper).updateById(any(PaymentReconcileIssueDO.class));
+    }
+
+    /**
+     * 定向回查指定支付请求时，应只处理该支付记录并发布对应结果事件。
+     */
+    @Test
+    void should_reconcile_single_payment_request_when_manual_retry_targets_one_record() {
+        PaymentRecordDO record = buildSuccessPaymentRecord();
+        LocalDateTime now = LocalDateTime.parse("2026-06-05T14:20:00");
+        when(paymentRecordMapper.selectOne(any())).thenReturn(record);
+        when(paymentRecordMapper.updateReconcileStatusIfCurrent(
+                1L,
+                PaymentConstants.RECONCILE_STATUS_PENDING,
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                now
+        )).thenReturn(1);
+        when(paymentRecordMapper.updateReconcileStatusIfCurrent(
+                1L,
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                PaymentConstants.RECONCILE_STATUS_PENDING,
+                now
+        )).thenReturn(1);
+        when(orderStatusQueryGateway.queryOrderStatus(20001L)).thenReturn(buildOrderStatusDTO("CREATED"));
+        when(paymentReconcileIssueMapper.selectOne(any())).thenReturn(null);
+
+        paymentProcessService.reconcilePaymentRequest("payment-req-001", now);
+
+        verify(paymentResultEventPublisher).publish(any(PaymentResultEvent.class));
+        verify(paymentReconcileIssueMapper).insert(any(PaymentReconcileIssueDO.class));
+    }
+
+    /**
+     * 定向回查指定支付请求时，如果支付记录不存在，应返回稳定错误。
+     */
+    @Test
+    void should_throw_when_targeted_reconcile_cannot_find_payment_record() {
+        when(paymentRecordMapper.selectOne(any())).thenReturn(null);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> paymentProcessService.reconcilePaymentRequest(
+                        "payment-req-404",
+                        LocalDateTime.parse("2026-06-05T14:25:00")
+                ));
+
+        assertEquals(ErrorCode.PAYMENT_RECORD_NOT_FOUND.getCode(), exception.getCode());
     }
 
     /**

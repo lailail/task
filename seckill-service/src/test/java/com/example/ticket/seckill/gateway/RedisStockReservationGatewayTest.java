@@ -1,6 +1,7 @@
 package com.example.ticket.seckill.gateway;
 
 import com.example.ticket.seckill.gateway.impl.RedisStockReservationGateway;
+import com.example.ticket.seckill.gateway.model.StockRollbackResult;
 import com.example.ticket.seckill.gateway.model.StockReserveCommand;
 import com.example.ticket.seckill.gateway.model.StockReserveResult;
 import com.example.ticket.seckill.support.SeckillConstants;
@@ -37,6 +38,9 @@ class RedisStockReservationGatewayTest {
     @Mock
     private DefaultRedisScript<List> reserveStockRedisScript;
 
+    @Mock
+    private DefaultRedisScript<List> rollbackReserveStockRedisScript;
+
     private RedisStockReservationGateway gateway;
 
     /**
@@ -45,7 +49,11 @@ class RedisStockReservationGatewayTest {
      */
     @BeforeEach
     void setUp() {
-        gateway = new RedisStockReservationGateway(stringRedisTemplate, reserveStockRedisScript);
+        gateway = new RedisStockReservationGateway(
+                stringRedisTemplate,
+                reserveStockRedisScript,
+                rollbackReserveStockRedisScript
+        );
     }
 
     /**
@@ -98,6 +106,36 @@ class RedisStockReservationGatewayTest {
         assertNull(result.getReservationId());
         assertNull(result.getOccurredAt());
         assertNull(result.getExpireAt());
+    }
+
+    /**
+     * 预扣回滚时，应按约定组装 Key 和参数，并映射回滚结果。
+     */
+    @Test
+    void should_build_expected_keys_and_map_rollback_result() {
+        StockReserveCommand command = buildCommand();
+        doReturn(List.of(SeckillConstants.ROLLBACK_RESULT_SUCCESS))
+                .when(stringRedisTemplate)
+                .execute(any(RedisScript.class), anyList(), any(Object[].class));
+
+        StockRollbackResult result = gateway.rollbackReservation(command);
+
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(stringRedisTemplate).execute(any(RedisScript.class), keysCaptor.capture(), argsCaptor.capture());
+
+        assertEquals(
+                List.of(
+                        "ticket:seckill:stock:1001:501",
+                        "ticket:seckill:user-order:1001:10001",
+                        "ticket:seckill:reservation:reservation-001",
+                        "ticket:seckill:idempotent:idem-001"
+                ),
+                keysCaptor.getValue()
+        );
+        assertEquals("1", String.valueOf(argsCaptor.getValue()[0]));
+        assertEquals("reservation-001", String.valueOf(argsCaptor.getValue()[1]));
+        assertEquals(SeckillConstants.ROLLBACK_RESULT_SUCCESS, result.getResultCode());
     }
 
     /**

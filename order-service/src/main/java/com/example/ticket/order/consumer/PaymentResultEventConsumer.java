@@ -2,6 +2,8 @@ package com.example.ticket.order.consumer;
 
 import com.example.ticket.common.event.payment.PaymentResultEvent;
 import com.example.ticket.order.service.OrderPaymentService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +13,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class PaymentResultEventConsumer {
+    private static final Logger log = LoggerFactory.getLogger(PaymentResultEventConsumer.class);
+
     private final OrderPaymentService orderPaymentService;
 
     /**
@@ -29,6 +33,15 @@ public class PaymentResultEventConsumer {
      */
     @RabbitListener(queues = "${ticket.order.mq.payment-result-queue}")
     public void consume(PaymentResultEvent event) {
+        log.info(
+                "收到支付结果事件，eventId={}, paymentRequestId={}, orderId={}, requestId={}, eventType={}",
+                event.getEventId(),
+                event.getPaymentRequestId(),
+                event.getOrderId(),
+                event.getRequestId(),
+                event.getEventType()
+        );
         orderPaymentService.handlePaymentResult(event);
+        log.info("支付结果事件处理完成，eventId={}, paymentRequestId={}, orderId={}", event.getEventId(), event.getPaymentRequestId(), event.getOrderId());
     }
 }

@@ -7,6 +7,8 @@ import com.example.ticket.job.gateway.StockReleaseMessageSender;
 import com.example.ticket.job.gateway.impl.MybatisStockReleaseTaskStore;
 import com.example.ticket.job.service.StockReleaseRetryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 public class StockReleaseRetryServiceImpl
         extends AbstractReliableMessageRetryService<StockReleaseEvent, JobStockReleaseTaskDO>
         implements StockReleaseRetryService {
+    private static final Logger log = LoggerFactory.getLogger(StockReleaseRetryServiceImpl.class);
 
     /**
      * 构造库存释放补发服务。
@@ -48,6 +51,7 @@ public class StockReleaseRetryServiceImpl
      */
     @Override
     public void retryDueTasks() {
+        log.debug("库存释放补发服务开始执行默认时间补发扫描");
         super.retryDueTasks();
     }
 
@@ -58,6 +62,7 @@ public class StockReleaseRetryServiceImpl
      */
     @Override
     public void retryDueTasks(LocalDateTime currentTime) {
+        log.debug("库存释放补发服务开始执行指定时间补发扫描，scanTime={}", currentTime);
         super.retryDueTasks(currentTime);
     }
 

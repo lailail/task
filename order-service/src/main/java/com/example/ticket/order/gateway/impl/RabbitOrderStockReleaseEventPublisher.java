@@ -3,6 +3,8 @@ package com.example.ticket.order.gateway.impl;
 import com.example.ticket.common.event.stock.StockEventConstants;
 import com.example.ticket.common.event.stock.StockReleaseEvent;
 import com.example.ticket.order.gateway.OrderStockReleaseEventPublisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +14,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class RabbitOrderStockReleaseEventPublisher implements OrderStockReleaseEventPublisher {
+    private static final Logger log = LoggerFactory.getLogger(RabbitOrderStockReleaseEventPublisher.class);
+
     private final RabbitTemplate rabbitTemplate;
 
     /**
@@ -30,6 +34,13 @@ public class RabbitOrderStockReleaseEventPublisher implements OrderStockReleaseE
      */
     @Override
     public void publish(StockReleaseEvent event) {
+        log.debug(
+                "发送订单域库存释放事件到 RabbitMQ，eventId={}, reservationId={}, orderId={}, requestId={}",
+                event.getEventId(),
+                event.getReservationId(),
+                event.getOrderId(),
+                event.getRequestId()
+        );
         rabbitTemplate.convertAndSend(
                 StockEventConstants.STOCK_RELEASE_EXCHANGE,
                 StockEventConstants.STOCK_RELEASE_ROUTING_KEY,

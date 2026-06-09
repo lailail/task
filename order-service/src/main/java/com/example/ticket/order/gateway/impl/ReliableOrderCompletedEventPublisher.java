@@ -6,6 +6,8 @@ import com.example.ticket.order.domain.OrderCompleteTaskDO;
 import com.example.ticket.order.gateway.OrderCompletedEventPublisher;
 import com.example.ticket.order.gateway.OrderCompletedMessageSender;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReliableOrderCompletedEventPublisher
         extends AbstractReliableMessagePublisher<OrderCompletedEvent, OrderCompleteTaskDO>
         implements OrderCompletedEventPublisher {
+    private static final Logger log = LoggerFactory.getLogger(ReliableOrderCompletedEventPublisher.class);
 
     /**
      * 构造可靠订单完成事件发布器。
@@ -46,6 +49,13 @@ public class ReliableOrderCompletedEventPublisher
     @Override
     @Transactional
     public void publish(OrderCompletedEvent event) {
+        log.debug(
+                "收到可靠订单完成事件发布请求，eventId={}, orderId={}, requestId={}, paymentRequestId={}",
+                event.getEventId(),
+                event.getOrderId(),
+                event.getRequestId(),
+                event.getPaymentRequestId()
+        );
         super.publish(event);
     }
 

@@ -6,6 +6,8 @@ import com.example.ticket.job.domain.JobStockReleaseTaskDO;
 import com.example.ticket.job.gateway.StockReleaseEventPublisher;
 import com.example.ticket.job.gateway.StockReleaseMessageSender;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReliableStockReleaseEventPublisher
         extends AbstractReliableMessagePublisher<StockReleaseEvent, JobStockReleaseTaskDO>
         implements StockReleaseEventPublisher {
+    private static final Logger log = LoggerFactory.getLogger(ReliableStockReleaseEventPublisher.class);
 
     /**
      * 构造可靠库存释放事件发布器。
@@ -47,6 +50,14 @@ public class ReliableStockReleaseEventPublisher
     @Override
     @Transactional
     public void publish(StockReleaseEvent event) {
+        log.debug(
+                "收到可靠库存释放事件发布请求，eventId={}, eventType={}, reservationId={}, orderId={}, requestId={}",
+                event.getEventId(),
+                event.getEventType(),
+                event.getReservationId(),
+                event.getOrderId(),
+                event.getRequestId()
+        );
         super.publish(event);
     }
 

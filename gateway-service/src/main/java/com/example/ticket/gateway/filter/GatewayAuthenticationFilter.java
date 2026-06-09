@@ -11,6 +11,8 @@ import com.example.ticket.common.response.ApiResponse;
 import com.example.ticket.gateway.config.GatewayAuthProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,6 +32,8 @@ import java.nio.charset.StandardCharsets;
  */
 @Component
 public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
+    private static final Logger log = LoggerFactory.getLogger(GatewayAuthenticationFilter.class);
+
     private final JwtTokenSupport jwtTokenSupport;
     private final GatewayAuthProperties gatewayAuthProperties;
     private final ObjectMapper objectMapper;
@@ -63,6 +67,7 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
         if (isPermitPath(path)) {
+            log.debug("网关放行匿名请求，path={}", path);
             return chain.filter(exchange);
         }
 
@@ -79,9 +84,16 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
                 throw new BusinessException(ErrorCode.TOKEN_INVALID);
             }
 
+            log.debug(
+                    "网关认证通过，path={}, userId={}, tokenId={}",
+                    path,
+                    parsedJwtToken.getAuthenticatedUser().getUserId(),
+                    parsedJwtToken.getAuthenticatedUser().getTokenId()
+            );
             ServerHttpRequest mutatedRequest = mutateRequest(exchange.getRequest(), parsedJwtToken.getAuthenticatedUser());
             return chain.filter(exchange.mutate().request(mutatedRequest).build());
         } catch (BusinessException exception) {
+            log.warn("网关认证失败，path={}, errorCode={}", path, exception.getCode());
             return writeUnauthorizedResponse(exchange, exception.getCode() == ErrorCode.TOKEN_EXPIRED.getCode()
                     ? ErrorCode.TOKEN_EXPIRED
                     : ErrorCode.TOKEN_INVALID);

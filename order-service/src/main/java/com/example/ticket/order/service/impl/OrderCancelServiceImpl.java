@@ -11,6 +11,8 @@ import com.example.ticket.order.mapper.TicketOrderMapper;
 import com.example.ticket.order.request.OrderCancelRequest;
 import com.example.ticket.order.service.OrderCancelService;
 import com.example.ticket.order.support.OrderConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,7 @@ import java.util.UUID;
  */
 @Service
 public class OrderCancelServiceImpl implements OrderCancelService {
+    private static final Logger log = LoggerFactory.getLogger(OrderCancelServiceImpl.class);
     private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     private final TicketOrderMapper ticketOrderMapper;
@@ -56,18 +59,22 @@ public class OrderCancelServiceImpl implements OrderCancelService {
     public void cancelOrder(AuthenticatedUser authenticatedUser, Long orderId, OrderCancelRequest request) {
         TicketOrderDO order = ticketOrderMapper.selectById(orderId);
         if (order == null) {
+            log.warn("取消订单失败，订单不存在，requestId={}, orderId={}, userId={}", request.getRequestId(), orderId, authenticatedUser.getUserId());
             throw new BusinessException(ErrorCode.ORDER_NOT_FOUND);
         }
         if (!order.getUserId().equals(authenticatedUser.getUserId())) {
+            log.warn("取消订单被拒绝，用户无权限，requestId={}, orderId={}, userId={}, ownerUserId={}", request.getRequestId(), orderId, authenticatedUser.getUserId(), order.getUserId());
             throw new BusinessException(ErrorCode.ORDER_CANCEL_FORBIDDEN);
         }
         if (!OrderConstants.ORDER_STATUS_CREATED.equals(order.getOrderStatus())) {
+            log.warn("取消订单失败，订单状态不允许取消，requestId={}, orderId={}, userId={}, orderStatus={}", request.getRequestId(), orderId, authenticatedUser.getUserId(), order.getOrderStatus());
             throw new BusinessException(ErrorCode.ORDER_STATUS_INVALID);
         }
 
         // 只有待支付订单允许用户主动取消，避免覆盖支付完成或系统关单终态。
         ticketOrderMapper.updateById(buildCancelledOrder(order));
         orderStockReleaseEventPublisher.publish(buildReleaseEvent(order, request));
+        log.info("订单已取消并已发布库存释放事件，requestId={}, orderId={}, userId={}, reservationId={}", request.getRequestId(), orderId, authenticatedUser.getUserId(), order.getReservationId());
     }
 
     /**

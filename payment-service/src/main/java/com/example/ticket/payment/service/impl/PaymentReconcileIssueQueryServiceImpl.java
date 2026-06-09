@@ -8,6 +8,9 @@ import com.example.ticket.payment.mapper.PaymentReconcileIssueMapper;
 import com.example.ticket.payment.request.PaymentReconcileIssueQueryRequest;
 import com.example.ticket.payment.response.PaymentReconcileIssueResponse;
 import com.example.ticket.payment.service.PaymentReconcileIssueQueryService;
+import com.example.ticket.payment.support.PaymentReconcileIssueResponseMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -20,6 +23,8 @@ import java.util.List;
  */
 @Service
 public class PaymentReconcileIssueQueryServiceImpl implements PaymentReconcileIssueQueryService {
+    private static final Logger log = LoggerFactory.getLogger(PaymentReconcileIssueQueryServiceImpl.class);
+
     private final PaymentReconcileIssueMapper paymentReconcileIssueMapper;
 
     /**
@@ -51,7 +56,17 @@ public class PaymentReconcileIssueQueryServiceImpl implements PaymentReconcileIs
             queryWrapper.eq(PaymentReconcileIssueDO::getIssueStatus, request.getIssueStatus());
         }
         queryWrapper.orderByDesc(PaymentReconcileIssueDO::getLastDetectedAt);
-        return paymentReconcileIssueMapper.selectList(queryWrapper).stream().map(this::toResponse).toList();
+        List<PaymentReconcileIssueResponse> responses = paymentReconcileIssueMapper.selectList(queryWrapper).stream()
+                .map(PaymentReconcileIssueResponseMapper::toResponse)
+                .toList();
+        log.info(
+                "支付对账异常查询完成，paymentRequestId={}, orderId={}, issueStatus={}, count={}",
+                request.getPaymentRequestId(),
+                request.getOrderId(),
+                request.getIssueStatus(),
+                responses.size()
+        );
+        return responses;
     }
 
     /**
@@ -65,31 +80,10 @@ public class PaymentReconcileIssueQueryServiceImpl implements PaymentReconcileIs
     public PaymentReconcileIssueResponse queryIssueDetail(Long issueId) {
         PaymentReconcileIssueDO issue = paymentReconcileIssueMapper.selectById(issueId);
         if (issue == null) {
+            log.warn("支付对账异常详情未命中，issueId={}", issueId);
             throw new BusinessException(ErrorCode.PAYMENT_RECONCILE_ISSUE_NOT_FOUND);
         }
-        return toResponse(issue);
-    }
-
-    /**
-     * 把异常持久化对象转换为响应对象。
-     *
-     * @param issue 异常持久化对象
-     * @return 查询响应对象
-     */
-    private PaymentReconcileIssueResponse toResponse(PaymentReconcileIssueDO issue) {
-        PaymentReconcileIssueResponse response = new PaymentReconcileIssueResponse();
-        response.setIssueId(issue.getIssueId());
-        response.setPaymentRequestId(issue.getPaymentRequestId());
-        response.setOrderId(issue.getOrderId());
-        response.setOrderNo(issue.getOrderNo());
-        response.setIssueType(issue.getIssueType());
-        response.setIssueStatus(issue.getIssueStatus());
-        response.setPaymentStatus(issue.getPaymentStatus());
-        response.setOrderStatus(issue.getOrderStatus());
-        response.setLatestErrorMessage(issue.getLatestErrorMessage());
-        response.setFirstDetectedAt(issue.getFirstDetectedAt());
-        response.setLastDetectedAt(issue.getLastDetectedAt());
-        response.setResolvedAt(issue.getResolvedAt());
-        return response;
+        log.info("支付对账异常详情查询成功，issueId={}, paymentRequestId={}, orderId={}, issueStatus={}", issueId, issue.getPaymentRequestId(), issue.getOrderId(), issue.getIssueStatus());
+        return PaymentReconcileIssueResponseMapper.toResponse(issue);
     }
 }

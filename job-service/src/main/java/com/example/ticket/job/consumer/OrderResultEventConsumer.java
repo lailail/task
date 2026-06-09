@@ -3,6 +3,8 @@ package com.example.ticket.job.consumer;
 import com.example.ticket.common.event.order.OrderCreateResultEvent;
 import com.example.ticket.job.service.ReservationConfirmService;
 import com.example.ticket.job.service.ReservationReleaseTriggerService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +14,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class OrderResultEventConsumer {
+    private static final Logger log = LoggerFactory.getLogger(OrderResultEventConsumer.class);
+
     private final ReservationConfirmService reservationConfirmService;
     private final ReservationReleaseTriggerService reservationReleaseTriggerService;
 
@@ -36,7 +40,17 @@ public class OrderResultEventConsumer {
      */
     @RabbitListener(queues = "${ticket.job.mq.order-result-queue}")
     public void consume(OrderCreateResultEvent event) {
+        log.info(
+                "收到订单结果事件，eventId={}, eventType={}, reservationId={}, orderId={}, requestId={}, idempotencyKey={}",
+                event.getEventId(),
+                event.getEventType(),
+                event.getReservationId(),
+                event.getOrderId(),
+                event.getRequestId(),
+                event.getIdempotencyKey()
+        );
         reservationConfirmService.handleOrderCreateResult(event);
         reservationReleaseTriggerService.handleOrderCreateResult(event);
+        log.info("订单结果事件处理完成，eventId={}, reservationId={}, orderId={}", event.getEventId(), event.getReservationId(), event.getOrderId());
     }
 }
