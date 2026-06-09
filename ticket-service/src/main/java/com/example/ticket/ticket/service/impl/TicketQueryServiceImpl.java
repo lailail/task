@@ -5,6 +5,8 @@ import com.example.ticket.common.error.ErrorCode;
 import com.example.ticket.ticket.dto.ActivityDTO;
 import com.example.ticket.ticket.repository.TicketRepository;
 import com.example.ticket.ticket.service.TicketQueryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,6 +17,8 @@ import java.util.List;
  */
 @Service
 public class TicketQueryServiceImpl implements TicketQueryService {
+    private static final Logger log = LoggerFactory.getLogger(TicketQueryServiceImpl.class);
+
     private final TicketRepository ticketRepository;
 
     /**
@@ -31,7 +35,9 @@ public class TicketQueryServiceImpl implements TicketQueryService {
      */
     @Override
     public List<ActivityDTO> listActivities() {
-        return ticketRepository.findAllActivities();
+        List<ActivityDTO> activities = ticketRepository.findAllActivities();
+        log.debug("活动查询服务返回活动列表，count={}", activities.size());
+        return activities;
     }
 
     /**
@@ -41,6 +47,9 @@ public class TicketQueryServiceImpl implements TicketQueryService {
     public ActivityDTO getActivityDetail(Long activityId) {
         // 活动不存在时直接抛出稳定业务错误码，避免控制层自行拼装错误响应。
         return ticketRepository.findActivityById(activityId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND));
+                .orElseThrow(() -> {
+                    log.warn("活动详情查询未命中，activityId={}", activityId);
+                    return new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND);
+                });
     }
 }

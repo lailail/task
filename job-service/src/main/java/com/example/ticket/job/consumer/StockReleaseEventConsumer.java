@@ -2,6 +2,8 @@ package com.example.ticket.job.consumer;
 
 import com.example.ticket.common.event.stock.StockReleaseEvent;
 import com.example.ticket.job.service.ReservationReleaseService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +13,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class StockReleaseEventConsumer {
+    private static final Logger log = LoggerFactory.getLogger(StockReleaseEventConsumer.class);
+
     private final ReservationReleaseService reservationReleaseService;
 
     /**
@@ -29,6 +33,17 @@ public class StockReleaseEventConsumer {
      */
     @RabbitListener(queues = "${ticket.job.mq.stock-release-queue}")
     public void consume(StockReleaseEvent event) {
+        log.info(
+                "收到库存释放事件，eventId={}, reservationId={}, orderId={}, requestId={}, activityId={}, ticketId={}, userId={}",
+                event.getEventId(),
+                event.getReservationId(),
+                event.getOrderId(),
+                event.getRequestId(),
+                event.getActivityId(),
+                event.getTicketId(),
+                event.getUserId()
+        );
         reservationReleaseService.handleStockRelease(event);
+        log.info("库存释放事件处理完成，eventId={}, reservationId={}, orderId={}", event.getEventId(), event.getReservationId(), event.getOrderId());
     }
 }

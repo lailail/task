@@ -8,6 +8,8 @@ import com.example.ticket.job.gateway.StockReleaseEventPublisher;
 import com.example.ticket.job.mapper.JobReservationRecordMapper;
 import com.example.ticket.job.service.ReservationReleaseTriggerService;
 import com.example.ticket.job.support.JobConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -22,6 +24,8 @@ import java.util.UUID;
  */
 @Service
 public class ReservationReleaseTriggerServiceImpl implements ReservationReleaseTriggerService {
+    private static final Logger log = LoggerFactory.getLogger(ReservationReleaseTriggerServiceImpl.class);
+
     private final JobReservationRecordMapper reservationRecordMapper;
     private final StockReleaseEventPublisher stockReleaseEventPublisher;
 
@@ -48,16 +52,20 @@ public class ReservationReleaseTriggerServiceImpl implements ReservationReleaseT
     @Transactional
     public void handleOrderCreateResult(OrderCreateResultEvent event) {
         if (!JobConstants.ORDER_RESULT_TYPE_CREATE_FAILED.equals(event.getEventType())) {
+            log.debug("订单结果事件不是建单失败，跳过释放触发，eventId={}, eventType={}", event.getEventId(), event.getEventType());
             return;
         }
         JobReservationRecordDO record = reservationRecordMapper.selectById(event.getReservationId());
         if (record == null) {
+            log.warn("建单失败释放触发未找到预扣记录，eventId={}, reservationId={}, requestId={}", event.getEventId(), event.getReservationId(), event.getRequestId());
             return;
         }
         if (!JobConstants.RESERVATION_STATUS_RESERVED.equals(record.getReservationStatus())) {
+            log.warn("建单失败释放触发跳过非法状态记录，eventId={}, reservationId={}, currentStatus={}", event.getEventId(), event.getReservationId(), record.getReservationStatus());
             return;
         }
         publishAfterCommit(buildReleaseEvent(event));
+        log.info("建单失败后已准备发布库存释放事件，eventId={}, reservationId={}, requestId={}", event.getEventId(), event.getReservationId(), event.getRequestId());
     }
 
     /**
@@ -92,6 +100,7 @@ public class ReservationReleaseTriggerServiceImpl implements ReservationReleaseT
      */
     private void publishAfterCommit(StockReleaseEvent event) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            log.info("库存释放事件直接发布，eventType={}, reservationId={}, requestId={}", event.getEventType(), event.getReservationId(), event.getRequestId());
             stockReleaseEventPublisher.publish(event);
             return;
         }
@@ -101,6 +110,7 @@ public class ReservationReleaseTriggerServiceImpl implements ReservationReleaseT
              */
             @Override
             public void afterCommit() {
+                log.info("库存释放事件在事务提交后发布，eventType={}, reservationId={}, requestId={}", event.getEventType(), event.getReservationId(), event.getRequestId());
                 stockReleaseEventPublisher.publish(event);
             }
         });

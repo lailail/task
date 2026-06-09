@@ -150,7 +150,7 @@ docker compose config
 - 当前所有服务统一通过 `optional:nacos:${spring.application.name}.${spring.cloud.nacos.config.file-extension}` 导入配置中心，显式打开 `Nacos Config` 时不会再因空 `dataId` 启动失败。
 - 当前 `order-service`、`job-service` 所依赖的 RabbitMQ 队列和交换机已由应用启动时自动声明，不再依赖手工预建。
 - 如果本地 MySQL 容器是在新增 `030_stock_release_task.sql`、`040_order_result_task.sql` 之前初始化的，需要手工补执行这两个 SQL 文件或重建数据卷，否则补偿调度器会因为任务表缺失持续报错。
-- 首轮 `Phase 6` baseline 已输出到 `docs/reports/phase6-baseline-output.json` 与 `docs/reports/2026-06-05-phase6-baseline.md`。
+- 首轮 `Phase 6` baseline 已输出到 `docs/05-运行报告/阶段6-基线输出.json` 与 `docs/05-运行报告/2026-06-05-阶段6-基线报告.md`。
 
 ## 常用验证命令
 
@@ -163,15 +163,16 @@ docker compose config
 
 ## 关键文档
 
+- `docs/文档导航.md`
 - `AGENTS.md`
-- `docs/spec/plan.md`
-- `docs/spec/rules.md`
-- `docs/spec/architecture.md`
-- `docs/spec/constraints.md`
-- `docs/spec/known-issues.md`
-- `docs/spec/phase6-observability.md`
-- `docs/spec/jwt-auth.md`
-- `docs/spec/post-v1-roadmap.md`
+- `docs/07-路线与现状/总体计划.md`
+- `docs/01-协作规范/开发规范.md`
+- `docs/02-总体设计/系统架构.md`
+- `docs/01-协作规范/工程约束.md`
+- `docs/07-路线与现状/已知问题.md`
+- `docs/02-总体设计/可观测性方案.md`
+- `docs/03-领域设计/JWT认证设计.md`
+- `docs/07-路线与现状/第一版后续路线图.md`
 
 ## 2026-06-05 增量说明
 

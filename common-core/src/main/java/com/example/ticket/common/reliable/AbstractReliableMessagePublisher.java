@@ -2,6 +2,8 @@ package com.example.ticket.common.reliable;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 
@@ -13,6 +15,8 @@ import java.time.LocalDateTime;
  * @param <TTask> 任务类型
  */
 public abstract class AbstractReliableMessagePublisher<TEvent, TTask extends ReliableMessageTask> {
+    private static final Logger log = LoggerFactory.getLogger(AbstractReliableMessagePublisher.class);
+
     private final ReliableMessageTaskStore<TTask> taskStore;
     private final ReliableMessageSender<TEvent> messageSender;
     private final ObjectMapper objectMapper;
@@ -61,11 +65,36 @@ public abstract class AbstractReliableMessagePublisher<TEvent, TTask extends Rel
     public void publish(TEvent event, LocalDateTime currentTime) {
         TTask task = buildPendingTask(event, currentTime);
         taskStore.insert(task);
+        log.info(
+                "可靠消息任务已落库，taskId={}, eventType={}, eventKey={}, businessKey={}, nextRetryAt={}",
+                task.getTaskId(),
+                task.getEventType(),
+                task.getEventKey(),
+                task.getBusinessKey(),
+                task.getNextRetryAt()
+        );
         try {
             messageSender.send(event);
             markTaskSent(task.getTaskId(), currentTime);
+            log.info(
+                    "可靠消息首次发送成功，taskId={}, eventType={}, eventKey={}, businessKey={}, sentAt={}",
+                    task.getTaskId(),
+                    task.getEventType(),
+                    task.getEventKey(),
+                    task.getBusinessKey(),
+                    currentTime
+            );
         } catch (RuntimeException exception) {
             markTaskRetrying(task.getTaskId(), currentTime, exception);
+            log.warn(
+                    "可靠消息首次发送失败，已转入补发状态，taskId={}, eventType={}, eventKey={}, businessKey={}, nextRetryAt={}, errorMessage={}",
+                    task.getTaskId(),
+                    task.getEventType(),
+                    task.getEventKey(),
+                    task.getBusinessKey(),
+                    currentTime.plusSeconds(retryIntervalSeconds),
+                    exception.getMessage()
+            );
         }
     }
 

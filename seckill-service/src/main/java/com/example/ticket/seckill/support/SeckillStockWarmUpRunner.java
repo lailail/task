@@ -2,6 +2,8 @@ package com.example.ticket.seckill.support;
 
 import com.example.ticket.seckill.dto.SeckillActivityDTO;
 import com.example.ticket.seckill.repository.SeckillActivityRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -15,6 +17,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(prefix = "ticket.seckill", name = "stock-warm-up-enabled", havingValue = "true", matchIfMissing = true)
 public class SeckillStockWarmUpRunner implements ApplicationRunner {
+    private static final Logger log = LoggerFactory.getLogger(SeckillStockWarmUpRunner.class);
+
     private final SeckillActivityRepository activityRepository;
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -39,12 +43,15 @@ public class SeckillStockWarmUpRunner implements ApplicationRunner {
      */
     @Override
     public void run(ApplicationArguments args) {
+        int warmUpCount = 0;
         for (SeckillActivityDTO activity : activityRepository.listActivities()) {
             // 只在 Redis 中不存在库存 Key 时写入演示库存，避免覆盖后续压测或人工准备的数据。
             stringRedisTemplate.opsForValue().setIfAbsent(
                     SeckillRedisKeySupport.buildStockKey(activity.getActivityId(), activity.getTicketId()),
                     String.valueOf(activity.getAvailableStock())
             );
+            warmUpCount++;
         }
+        log.info("抢票演示库存预热完成，activityCount={}", warmUpCount);
     }
 }

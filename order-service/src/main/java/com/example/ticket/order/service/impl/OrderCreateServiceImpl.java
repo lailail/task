@@ -13,6 +13,8 @@ import com.example.ticket.order.mapper.OrderEventLogMapper;
 import com.example.ticket.order.mapper.TicketOrderMapper;
 import com.example.ticket.order.service.OrderCreateService;
 import com.example.ticket.order.support.OrderConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -29,6 +31,7 @@ import java.util.UUID;
  */
 @Service
 public class OrderCreateServiceImpl implements OrderCreateService {
+    private static final Logger log = LoggerFactory.getLogger(OrderCreateServiceImpl.class);
     private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     private final TicketOrderMapper ticketOrderMapper;
@@ -65,6 +68,7 @@ public class OrderCreateServiceImpl implements OrderCreateService {
     @Transactional
     public void handleOrderCreateRequested(OrderCreateRequestedEvent event) {
         if (queryEventLogByEventKey(event.getEventId()) != null) {
+            log.warn("下单请求事件重复消费已忽略，eventId={}, reservationId={}, idempotencyKey={}", event.getEventId(), event.getReservationId(), event.getIdempotencyKey());
             return;
         }
 
@@ -73,6 +77,17 @@ public class OrderCreateServiceImpl implements OrderCreateService {
         if (existingOrder != null) {
             insertSuccessEventLog(event);
             resultEvent = buildCreatedResultEvent(event, existingOrder);
+            log.info(
+                    "下单请求命中幂等订单，直接复用已有订单，eventId={}, reservationId={}, orderId={}, requestId={}, userId={}, activityId={}, ticketId={}, idempotencyKey={}",
+                    event.getEventId(),
+                    event.getReservationId(),
+                    existingOrder.getOrderId(),
+                    event.getRequestId(),
+                    event.getUserId(),
+                    event.getActivityId(),
+                    event.getTicketId(),
+                    event.getIdempotencyKey()
+            );
             publishResultEventAfterCommit(resultEvent);
             return;
         }
@@ -82,9 +97,31 @@ public class OrderCreateServiceImpl implements OrderCreateService {
             ticketOrderMapper.insert(order);
             insertSuccessEventLog(event);
             resultEvent = buildCreatedResultEvent(event, order);
+            log.info(
+                    "下单请求已创建订单，eventId={}, reservationId={}, orderId={}, requestId={}, userId={}, activityId={}, ticketId={}, idempotencyKey={}",
+                    event.getEventId(),
+                    event.getReservationId(),
+                    order.getOrderId(),
+                    event.getRequestId(),
+                    event.getUserId(),
+                    event.getActivityId(),
+                    event.getTicketId(),
+                    event.getIdempotencyKey()
+            );
         } catch (RuntimeException exception) {
             insertFailedEventLog(event, exception.getMessage());
             resultEvent = buildFailedResultEvent(event, exception.getMessage());
+            log.error(
+                    "下单请求创建订单失败，eventId={}, reservationId={}, requestId={}, userId={}, activityId={}, ticketId={}, idempotencyKey={}",
+                    event.getEventId(),
+                    event.getReservationId(),
+                    event.getRequestId(),
+                    event.getUserId(),
+                    event.getActivityId(),
+                    event.getTicketId(),
+                    event.getIdempotencyKey(),
+                    exception
+            );
         }
         publishResultEventAfterCommit(resultEvent);
     }
@@ -229,6 +266,14 @@ public class OrderCreateServiceImpl implements OrderCreateService {
      */
     private void publishResultEventAfterCommit(OrderCreateResultEvent resultEvent) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            log.info(
+                    "下单结果事件直接发布，eventType={}, reservationId={}, orderId={}, requestId={}, idempotencyKey={}",
+                    resultEvent.getEventType(),
+                    resultEvent.getReservationId(),
+                    resultEvent.getOrderId(),
+                    resultEvent.getRequestId(),
+                    resultEvent.getIdempotencyKey()
+            );
             resultEventPublisher.publish(resultEvent);
             return;
         }
@@ -238,6 +283,14 @@ public class OrderCreateServiceImpl implements OrderCreateService {
              */
             @Override
             public void afterCommit() {
+                log.info(
+                        "下单结果事件在事务提交后发布，eventType={}, reservationId={}, orderId={}, requestId={}, idempotencyKey={}",
+                        resultEvent.getEventType(),
+                        resultEvent.getReservationId(),
+                        resultEvent.getOrderId(),
+                        resultEvent.getRequestId(),
+                        resultEvent.getIdempotencyKey()
+                );
                 resultEventPublisher.publish(resultEvent);
             }
         });

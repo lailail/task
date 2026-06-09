@@ -1,6 +1,8 @@
 package com.example.ticket.job.support;
 
 import com.example.ticket.job.service.StockReleaseRetryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class StockReleaseRetryScheduler {
+    private static final Logger log = LoggerFactory.getLogger(StockReleaseRetryScheduler.class);
+
     private final StockReleaseRetryService stockReleaseRetryService;
 
     /**
@@ -24,6 +28,7 @@ public class StockReleaseRetryScheduler {
     /** 触发一次库存释放补发扫描。 */
     @Scheduled(cron = "${ticket.job.stock-release-retry-cron}")
     public void retryDueTasks() {
+        log.info("触发库存释放补发扫描");
         stockReleaseRetryService.retryDueTasks();
     }
 }

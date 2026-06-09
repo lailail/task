@@ -18,6 +18,8 @@ import com.example.ticket.payment.mapper.PaymentRecordMapper;
 import com.example.ticket.payment.request.PaymentNotifyRequest;
 import com.example.ticket.payment.service.PaymentProcessService;
 import com.example.ticket.payment.support.PaymentConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ import java.util.UUID;
  */
 @Service
 public class PaymentProcessServiceImpl implements PaymentProcessService {
+    private static final Logger log = LoggerFactory.getLogger(PaymentProcessServiceImpl.class);
     private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     private final PaymentRecordMapper paymentRecordMapper;
@@ -82,6 +85,15 @@ public class PaymentProcessServiceImpl implements PaymentProcessService {
                 .eq(PaymentRecordDO::getPaymentRequestId, request.getPaymentRequestId()));
         if (existingRecord != null) {
             // 同一个支付请求只允许沉淀一条支付事实，重复通知直接忽略。
+            log.warn(
+                    "重复支付通知已忽略，paymentRequestId={}, orderId={}, requestId={}, userId={}, activityId={}, ticketId={}",
+                    request.getPaymentRequestId(),
+                    request.getOrderId(),
+                    request.getRequestId(),
+                    request.getUserId(),
+                    request.getActivityId(),
+                    request.getTicketId()
+            );
             return;
         }
 
@@ -90,9 +102,28 @@ public class PaymentProcessServiceImpl implements PaymentProcessService {
             paymentRecordMapper.insert(record);
         } catch (DuplicateKeyException exception) {
             // 并发重复通知时以数据库唯一键兜底，避免同一支付请求落两条事实。
+            log.warn(
+                    "支付事实落库命中唯一键冲突，按重复通知处理，paymentRequestId={}, orderId={}, requestId={}, userId={}, activityId={}, ticketId={}",
+                    request.getPaymentRequestId(),
+                    request.getOrderId(),
+                    request.getRequestId(),
+                    request.getUserId(),
+                    request.getActivityId(),
+                    request.getTicketId()
+            );
             return;
         }
         paymentResultEventPublisher.publish(buildPaymentResultEvent(record));
+        log.info(
+                "支付事实已落库并发布支付结果事件，paymentRequestId={}, paymentStatus={}, orderId={}, requestId={}, userId={}, activityId={}, ticketId={}",
+                record.getPaymentRequestId(),
+                record.getPaymentStatus(),
+                record.getOrderId(),
+                record.getRequestId(),
+                record.getUserId(),
+                record.getActivityId(),
+                record.getTicketId()
+        );
     }
 
     /**
@@ -106,18 +137,41 @@ public class PaymentProcessServiceImpl implements PaymentProcessService {
         List<PaymentRecordDO> records = paymentRecordMapper.selectList(new LambdaQueryWrapper<PaymentRecordDO>()
                 .eq(PaymentRecordDO::getReconcileStatus, PaymentConstants.RECONCILE_STATUS_PENDING)
                 .last("limit " + reconcileBatchSize));
+        log.info("开始批量支付对账回查，batchSize={}, actualSize={}, reconcileTime={}", reconcileBatchSize, records.size(), now);
         for (PaymentRecordDO record : records) {
-            // 先抢占对账处理权，避免多实例同时对同一条支付记录重复发布收敛事件。
-            if (paymentRecordMapper.updateReconcileStatusIfCurrent(
-                    record.getPaymentId(),
-                    PaymentConstants.RECONCILE_STATUS_PENDING,
-                    PaymentConstants.RECONCILE_STATUS_PROCESSING,
-                    now
-            ) <= 0) {
-                continue;
-            }
-            reconcileSingleRecord(record, now);
+            reconcileRecordIfClaimed(record, now);
         }
+    }
+
+    /**
+     * 对指定支付请求执行一次定向回查。
+     *
+     * @param paymentRequestId 支付请求标识
+     * @param now 当前时间
+     */
+    @Override
+    @Transactional
+    public void reconcilePaymentRequest(String paymentRequestId, LocalDateTime now) {
+        PaymentRecordDO record = paymentRecordMapper.selectOne(
+                new LambdaQueryWrapper<PaymentRecordDO>()
+                        .eq(PaymentRecordDO::getPaymentRequestId, paymentRequestId)
+        );
+        if (record == null) {
+            log.warn("定向支付对账回查未找到支付记录，paymentRequestId={}, reconcileTime={}", paymentRequestId, now);
+            throw new BusinessException(ErrorCode.PAYMENT_RECORD_NOT_FOUND);
+        }
+        log.info(
+                "开始定向支付对账回查，paymentRequestId={}, paymentId={}, orderId={}, requestId={}, userId={}, activityId={}, ticketId={}, reconcileTime={}",
+                record.getPaymentRequestId(),
+                record.getPaymentId(),
+                record.getOrderId(),
+                record.getRequestId(),
+                record.getUserId(),
+                record.getActivityId(),
+                record.getTicketId(),
+                now
+        );
+        reconcileRecordIfClaimed(record, now);
     }
 
     /**
@@ -134,6 +188,25 @@ public class PaymentProcessServiceImpl implements PaymentProcessService {
             resolveIssueIfExists(record.getPaymentRequestId(), now);
             if (shouldPublishReconciledEvent(record, orderStatusDTO)) {
                 paymentReconciledEventPublisher.publish(buildPaymentReconciledEvent(record));
+                log.info(
+                        "支付对账已收敛并发布收敛事件，paymentRequestId={}, paymentId={}, orderId={}, paymentStatus={}, orderStatus={}, requestId={}",
+                        record.getPaymentRequestId(),
+                        record.getPaymentId(),
+                        record.getOrderId(),
+                        record.getPaymentStatus(),
+                        orderStatusDTO.getOrderStatus(),
+                        record.getRequestId()
+                );
+            } else {
+                log.info(
+                        "支付对账已收敛且无需发布收敛事件，paymentRequestId={}, paymentId={}, orderId={}, paymentStatus={}, orderStatus={}, requestId={}",
+                        record.getPaymentRequestId(),
+                        record.getPaymentId(),
+                        record.getOrderId(),
+                        record.getPaymentStatus(),
+                        orderStatusDTO.getOrderStatus(),
+                        record.getRequestId()
+                );
             }
             updateReconcileState(
                     record.getPaymentId(),
@@ -147,12 +220,48 @@ public class PaymentProcessServiceImpl implements PaymentProcessService {
         // 支付事实与订单状态未收敛时，既要重发支付结果推动订单域继续收敛，也要留下正式异常事实供后续查询。
         paymentResultEventPublisher.publish(buildPaymentResultEvent(record));
         upsertReconcileIssue(record, orderStatusDTO, now);
+        log.warn(
+                "支付对账未收敛，已重发支付结果并更新异常事实，paymentRequestId={}, paymentId={}, orderId={}, paymentStatus={}, orderStatus={}, requestId={}",
+                record.getPaymentRequestId(),
+                record.getPaymentId(),
+                record.getOrderId(),
+                record.getPaymentStatus(),
+                resolveOrderStatus(orderStatusDTO),
+                record.getRequestId()
+        );
         updateReconcileState(
                 record.getPaymentId(),
                 PaymentConstants.RECONCILE_STATUS_PROCESSING,
                 PaymentConstants.RECONCILE_STATUS_PENDING,
                 now
         );
+    }
+
+    /**
+     * 在抢到处理权后执行单条支付记录回查。
+     *
+     * @param record 支付记录
+     * @param now 当前时间
+     */
+    private void reconcileRecordIfClaimed(PaymentRecordDO record, LocalDateTime now) {
+        // 先抢占对账处理权，避免多实例同时对同一条支付记录重复发布收敛事件。
+        if (paymentRecordMapper.updateReconcileStatusIfCurrent(
+                record.getPaymentId(),
+                record.getReconcileStatus(),
+                PaymentConstants.RECONCILE_STATUS_PROCESSING,
+                now
+        ) <= 0) {
+            log.debug(
+                    "支付对账记录已被其他工作线程抢占，跳过当前回查，paymentRequestId={}, paymentId={}, orderId={}, currentReconcileStatus={}, requestId={}",
+                    record.getPaymentRequestId(),
+                    record.getPaymentId(),
+                    record.getOrderId(),
+                    record.getReconcileStatus(),
+                    record.getRequestId()
+            );
+            return;
+        }
+        reconcileSingleRecord(record, now);
     }
 
     /**
@@ -289,9 +398,24 @@ public class PaymentProcessServiceImpl implements PaymentProcessService {
             issue.setLastDetectedAt(now);
             try {
                 paymentReconcileIssueMapper.insert(issue);
+                log.warn(
+                        "新增支付对账异常事实，issueStatus={}, paymentRequestId={}, orderId={}, paymentStatus={}, orderStatus={}, requestId={}",
+                        issue.getIssueStatus(),
+                        issue.getPaymentRequestId(),
+                        issue.getOrderId(),
+                        issue.getPaymentStatus(),
+                        issue.getOrderStatus(),
+                        record.getRequestId()
+                );
                 return;
             } catch (DuplicateKeyException exception) {
                 // 并发回查时可能已有其他实例先写入异常事实，这里转入更新路径而不是让整批事务回滚。
+                log.warn(
+                        "支付对账异常事实插入命中唯一键冲突，转为更新已存在异常，paymentRequestId={}, orderId={}, requestId={}",
+                        record.getPaymentRequestId(),
+                        record.getOrderId(),
+                        record.getRequestId()
+                );
                 existingIssue = paymentReconcileIssueMapper.selectOne(
                         new LambdaQueryWrapper<PaymentReconcileIssueDO>()
                                 .eq(PaymentReconcileIssueDO::getPaymentRequestId, record.getPaymentRequestId())
@@ -312,6 +436,15 @@ public class PaymentProcessServiceImpl implements PaymentProcessService {
         updateTarget.setLastDetectedAt(now);
         updateTarget.setResolvedAt(null);
         paymentReconcileIssueMapper.updateById(updateTarget);
+        log.warn(
+                "更新支付对账异常事实，issueId={}, paymentRequestId={}, orderId={}, paymentStatus={}, orderStatus={}, requestId={}",
+                updateTarget.getIssueId(),
+                record.getPaymentRequestId(),
+                record.getOrderId(),
+                record.getPaymentStatus(),
+                updateTarget.getOrderStatus(),
+                record.getRequestId()
+        );
     }
 
     /**
@@ -335,6 +468,12 @@ public class PaymentProcessServiceImpl implements PaymentProcessService {
         updateTarget.setResolvedAt(now);
         updateTarget.setLastDetectedAt(now);
         paymentReconcileIssueMapper.updateById(updateTarget);
+        log.info(
+                "支付对账异常事实已解决，issueId={}, paymentRequestId={}, resolveTime={}",
+                updateTarget.getIssueId(),
+                paymentRequestId,
+                now
+        );
     }
 
     /**

@@ -6,6 +6,8 @@ import com.example.ticket.payment.domain.PaymentReconciledTaskDO;
 import com.example.ticket.payment.gateway.PaymentReconciledEventPublisher;
 import com.example.ticket.payment.gateway.PaymentReconciledMessageSender;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReliablePaymentReconciledEventPublisher
         extends AbstractReliableMessagePublisher<PaymentReconciledEvent, PaymentReconciledTaskDO>
         implements PaymentReconciledEventPublisher {
+    private static final Logger log = LoggerFactory.getLogger(ReliablePaymentReconciledEventPublisher.class);
 
     /**
      * 构造可靠支付收敛事件发布器。
@@ -46,6 +49,13 @@ public class ReliablePaymentReconciledEventPublisher
     @Override
     @Transactional
     public void publish(PaymentReconciledEvent event) {
+        log.debug(
+                "收到可靠支付收敛事件发布请求，eventId={}, paymentRequestId={}, orderId={}, requestId={}",
+                event.getEventId(),
+                event.getPaymentRequestId(),
+                event.getOrderId(),
+                event.getRequestId()
+        );
         super.publish(event);
     }
 

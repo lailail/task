@@ -47,6 +47,14 @@ public class PaymentReconcileIssueDO {
     private LocalDateTime lastDetectedAt;
     @TableField("resolved_at")
     private LocalDateTime resolvedAt;
+    @TableField("manual_action")
+    private String manualAction;
+    @TableField("manual_operator")
+    private String manualOperator;
+    @TableField("manual_note")
+    private String manualNote;
+    @TableField("manual_operated_at")
+    private LocalDateTime manualOperatedAt;
 
     /** 获取异常主键。 */
     public Long getIssueId() { return issueId; }
@@ -116,4 +124,20 @@ public class PaymentReconcileIssueDO {
     public LocalDateTime getResolvedAt() { return resolvedAt; }
     /** 设置解决时间。 */
     public void setResolvedAt(LocalDateTime resolvedAt) { this.resolvedAt = resolvedAt; }
+    /** 获取最近一次人工处置动作。 */
+    public String getManualAction() { return manualAction; }
+    /** 设置最近一次人工处置动作。 */
+    public void setManualAction(String manualAction) { this.manualAction = manualAction; }
+    /** 获取最近一次人工处置操作人。 */
+    public String getManualOperator() { return manualOperator; }
+    /** 设置最近一次人工处置操作人。 */
+    public void setManualOperator(String manualOperator) { this.manualOperator = manualOperator; }
+    /** 获取最近一次人工处置备注。 */
+    public String getManualNote() { return manualNote; }
+    /** 设置最近一次人工处置备注。 */
+    public void setManualNote(String manualNote) { this.manualNote = manualNote; }
+    /** 获取最近一次人工处置时间。 */
+    public LocalDateTime getManualOperatedAt() { return manualOperatedAt; }
+    /** 设置最近一次人工处置时间。 */
+    public void setManualOperatedAt(LocalDateTime manualOperatedAt) { this.manualOperatedAt = manualOperatedAt; }
 }

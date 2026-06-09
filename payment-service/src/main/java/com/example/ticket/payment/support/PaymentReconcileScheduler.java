@@ -1,6 +1,8 @@
 package com.example.ticket.payment.support;
 
 import com.example.ticket.payment.service.PaymentProcessService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +15,7 @@ import java.time.ZoneId;
  */
 @Component
 public class PaymentReconcileScheduler {
+    private static final Logger log = LoggerFactory.getLogger(PaymentReconcileScheduler.class);
     private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     private final PaymentProcessService paymentProcessService;
@@ -31,6 +34,8 @@ public class PaymentReconcileScheduler {
      */
     @Scheduled(cron = "${ticket.payment.reconcile-cron:15/30 * * * * ?}")
     public void reconcile() {
-        paymentProcessService.reconcilePendingPayments(LocalDateTime.now(DEFAULT_ZONE_ID));
+        LocalDateTime now = LocalDateTime.now(DEFAULT_ZONE_ID);
+        log.info("触发支付对账回查，reconcileTime={}", now);
+        paymentProcessService.reconcilePendingPayments(now);
     }
 }

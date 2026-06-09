@@ -1,6 +1,8 @@
 package com.example.ticket.order.support;
 
 import com.example.ticket.order.service.OrderCompleteRetryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class OrderCompleteRetryScheduler {
+    private static final Logger log = LoggerFactory.getLogger(OrderCompleteRetryScheduler.class);
+
     private final OrderCompleteRetryService orderCompleteRetryService;
 
     /**
@@ -26,6 +30,7 @@ public class OrderCompleteRetryScheduler {
      */
     @Scheduled(cron = "${ticket.order.complete-retry-cron}")
     public void scheduleRetry() {
+        log.info("触发订单完成事件补发扫描");
         orderCompleteRetryService.retryDueTasks();
     }
 }

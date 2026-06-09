@@ -5,6 +5,8 @@ import com.example.ticket.ticket.dto.ActivityDTO;
 import com.example.ticket.ticket.response.ActivityDetailResponse;
 import com.example.ticket.ticket.response.ActivitySummaryResponse;
 import com.example.ticket.ticket.service.TicketQueryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +21,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/activities")
 public class TicketController {
+    private static final Logger log = LoggerFactory.getLogger(TicketController.class);
+
     private final TicketQueryService ticketQueryService;
 
     /**
@@ -35,10 +39,12 @@ public class TicketController {
      */
     @GetMapping
     public ApiResponse<List<ActivitySummaryResponse>> listActivities() {
+        log.info("收到活动列表查询请求");
         // 控制层只负责把领域查询结果转换成接口响应对象，避免把 DTO 直接暴露给外部调用方。
         List<ActivitySummaryResponse> data = ticketQueryService.listActivities().stream()
                 .map(this::toSummaryResponse)
                 .toList();
+        log.info("活动列表查询完成，count={}", data.size());
         return ApiResponse.success(data);
     }
 
@@ -47,7 +53,14 @@ public class TicketController {
      */
     @GetMapping("/{activityId}")
     public ApiResponse<ActivityDetailResponse> getActivityDetail(@PathVariable Long activityId) {
-        return ApiResponse.success(toDetailResponse(ticketQueryService.getActivityDetail(activityId)));
+        log.info("收到活动详情查询请求，activityId={}", activityId);
+        ActivityDetailResponse response = toDetailResponse(ticketQueryService.getActivityDetail(activityId));
+        log.info(
+                "活动详情查询完成，activityId={}, ticketItemCount={}",
+                activityId,
+                response.getTicketItems() == null ? 0 : response.getTicketItems().size()
+        );
+        return ApiResponse.success(response);
     }
 
     /**

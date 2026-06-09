@@ -7,6 +7,7 @@ import com.example.ticket.common.event.order.OrderCreateRequestedEvent;
 import com.example.ticket.seckill.dto.SeckillActivityDTO;
 import com.example.ticket.seckill.gateway.OrderCreateEventPublisher;
 import com.example.ticket.seckill.gateway.StockReservationGateway;
+import com.example.ticket.seckill.gateway.model.StockRollbackResult;
 import com.example.ticket.seckill.gateway.model.StockReserveCommand;
 import com.example.ticket.seckill.gateway.model.StockReserveResult;
 import com.example.ticket.seckill.repository.ReservationRecordRepository;
@@ -22,12 +23,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -40,6 +44,7 @@ import static org.mockito.Mockito.when;
  * 用于验证 Phase 3 第一段主链路的业务编排边界。
  */
 @ExtendWith(MockitoExtension.class)
+@ExtendWith(OutputCaptureExtension.class)
 class SeckillServiceTest {
 
     @Mock
@@ -75,7 +80,7 @@ class SeckillServiceTest {
      * 成功预扣库存后，应先落库预扣记录，再发送下单事件。
      */
     @Test
-    void should_persist_reservation_and_publish_order_event_when_request_is_valid() {
+    void should_persist_reservation_and_publish_order_event_when_request_is_valid(CapturedOutput output) {
         AuthenticatedUser authenticatedUser = buildAuthenticatedUser();
         SeckillReserveRequest request = buildRequest();
         SeckillActivityDTO activity = buildActivity(SeckillConstants.SALE_STATUS_ON_SALE);
@@ -102,6 +107,9 @@ class SeckillServiceTest {
         InOrder inOrder = inOrder(reservationRecordRepository, orderCreateEventPublisher);
         inOrder.verify(reservationRecordRepository).save(any());
         inOrder.verify(orderCreateEventPublisher).publish(any());
+        assertTrue(output.getOut().contains("抢票预扣成功并已发送下单事件"));
+        assertTrue(output.getOut().contains("requestId=req-001"));
+        assertTrue(output.getOut().contains("reservationId=reservation-001"));
     }
 
     /**
@@ -161,10 +169,10 @@ class SeckillServiceTest {
     }
 
     /**
-     * 预扣记录落库失败时，应中断下单事件发送。
+     * 预扣记录落库失败时，应立即回滚 Redis 预扣并中断下单事件发送。
      */
     @Test
-    void should_not_publish_order_event_when_reservation_record_save_fails() {
+    void should_rollback_reserved_stock_when_reservation_record_save_fails() {
         AuthenticatedUser authenticatedUser = buildAuthenticatedUser();
         SeckillReserveRequest request = buildRequest();
         SeckillActivityDTO activity = buildActivity(SeckillConstants.SALE_STATUS_ON_SALE);
@@ -176,11 +184,14 @@ class SeckillServiceTest {
         when(activityRepository.findByActivityIdAndTicketId(request.getActivityId(), request.getTicketId()))
                 .thenReturn(Optional.of(activity));
         when(stockReservationGateway.reserve(any(StockReserveCommand.class))).thenReturn(result);
+        when(stockReservationGateway.rollbackReservation(any(StockReserveCommand.class)))
+                .thenReturn(StockRollbackResult.of(SeckillConstants.ROLLBACK_RESULT_SUCCESS));
         doThrow(new IllegalStateException("save failed")).when(reservationRecordRepository).save(any());
 
         assertThrows(IllegalStateException.class, () -> seckillService.reserve(authenticatedUser, request));
 
         verify(reservationRecordRepository).save(any());
+        verify(stockReservationGateway).rollbackReservation(any(StockReserveCommand.class));
         verify(orderCreateEventPublisher, never()).publish(any());
     }
 

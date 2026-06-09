@@ -4,6 +4,8 @@ import com.example.ticket.common.response.ApiResponse;
 import com.example.ticket.payment.request.PaymentNotifyRequest;
 import com.example.ticket.payment.service.PaymentProcessService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/payments")
 public class PaymentController {
+    private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
+
     private final PaymentProcessService paymentProcessService;
 
     /**
@@ -35,7 +39,23 @@ public class PaymentController {
      */
     @PostMapping("/notify")
     public ApiResponse<Void> notifyPayment(@Valid @RequestBody PaymentNotifyRequest request) {
+        log.info(
+                "收到支付通知请求，paymentRequestId={}, orderId={}, requestId={}, userId={}, activityId={}, ticketId={}, paymentStatus={}",
+                request.getPaymentRequestId(),
+                request.getOrderId(),
+                request.getRequestId(),
+                request.getUserId(),
+                request.getActivityId(),
+                request.getTicketId(),
+                request.getPaymentStatus()
+        );
         paymentProcessService.recordPaymentResult(request);
+        log.info(
+                "支付通知处理完成，paymentRequestId={}, orderId={}, requestId={}",
+                request.getPaymentRequestId(),
+                request.getOrderId(),
+                request.getRequestId()
+        );
         return ApiResponse.success(null);
     }
 }

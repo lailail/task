@@ -7,6 +7,8 @@ import com.example.ticket.order.gateway.OrderCreateResultMessageSender;
 import com.example.ticket.order.gateway.impl.MybatisOrderResultTaskStore;
 import com.example.ticket.order.service.OrderResultRetryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 public class OrderResultRetryServiceImpl
         extends AbstractReliableMessageRetryService<OrderCreateResultEvent, OrderResultTaskDO>
         implements OrderResultRetryService {
+    private static final Logger log = LoggerFactory.getLogger(OrderResultRetryServiceImpl.class);
 
     /**
      * 构造下单结果补发服务。
@@ -48,6 +51,7 @@ public class OrderResultRetryServiceImpl
      */
     @Override
     public void retryDueTasks() {
+        log.debug("下单结果补发服务开始执行默认时间补发扫描");
         super.retryDueTasks();
     }
 
@@ -58,6 +62,7 @@ public class OrderResultRetryServiceImpl
      */
     @Override
     public void retryDueTasks(LocalDateTime currentTime) {
+        log.debug("下单结果补发服务开始执行指定时间补发扫描，scanTime={}", currentTime);
         super.retryDueTasks(currentTime);
     }
 

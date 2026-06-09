@@ -19,6 +19,10 @@ public final class SeckillConstants {
     public static final String RESERVE_RESULT_SUCCESS = "SUCCESS";
     public static final String RESERVE_RESULT_DUPLICATE = "DUPLICATE";
     public static final String RESERVE_RESULT_OUT_OF_STOCK = "OUT_OF_STOCK";
+    public static final String RESERVE_RESULT_FAILED = "FAILED";
+    public static final String ROLLBACK_RESULT_SUCCESS = "SUCCESS";
+    public static final String ROLLBACK_RESULT_ALREADY_RELEASED = "ALREADY_RELEASED";
+    public static final String ROLLBACK_RESULT_FAILED = "FAILED";
 
     public static final String ORDER_CREATE_EVENT_TYPE = "ORDER_CREATE_REQUESTED";
     public static final String ORDER_CREATE_EVENT_SOURCE = "SECKILL_SERVICE";

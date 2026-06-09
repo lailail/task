@@ -4,6 +4,8 @@ import com.example.ticket.common.event.stock.StockReleaseEvent;
 import com.example.ticket.job.gateway.StockReleaseGateway;
 import com.example.ticket.job.support.JobConstants;
 import com.example.ticket.job.support.JobRedisKeySupport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -17,6 +19,8 @@ import java.util.List;
  */
 @Component
 public class RedisStockReleaseGateway implements StockReleaseGateway {
+    private static final Logger log = LoggerFactory.getLogger(RedisStockReleaseGateway.class);
+
     private final StringRedisTemplate stringRedisTemplate;
     private final DefaultRedisScript<List> releaseScript;
     private final long stockReleaseIdempotentSeconds;
@@ -62,7 +66,20 @@ public class RedisStockReleaseGateway implements StockReleaseGateway {
                 event.getReason(),
                 String.valueOf(stockReleaseIdempotentSeconds)
         );
+        if (result == null || result.isEmpty()) {
+            log.error("Redis 库存回补脚本返回空结果，reservationId={}, orderId={}, requestId={}, activityId={}, ticketId={}", event.getReservationId(), event.getOrderId(), event.getRequestId(), event.getActivityId(), event.getTicketId());
+            return false;
+        }
         String resultCode = String.valueOf(result.get(0));
+        log.info(
+                "Redis 库存回补脚本执行完成，reservationId={}, orderId={}, requestId={}, activityId={}, ticketId={}, resultCode={}",
+                event.getReservationId(),
+                event.getOrderId(),
+                event.getRequestId(),
+                event.getActivityId(),
+                event.getTicketId(),
+                resultCode
+        );
         return JobConstants.STOCK_RELEASE_RESULT_SUCCESS.equals(resultCode)
                 || JobConstants.STOCK_RELEASE_RESULT_ALREADY_RELEASED.equals(resultCode);
     }

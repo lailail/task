@@ -16,6 +16,8 @@ import com.example.ticket.user.request.UserRegisterRequest;
 import com.example.ticket.user.response.UserLoginResponse;
 import com.example.ticket.user.service.UserService;
 import com.example.ticket.user.support.UserSecurityConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +27,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class UserServiceImpl implements UserService {
+    private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
+
     private final PasswordEncoder passwordEncoder;
     private final UserRepository userRepository;
     private final JwtTokenSupport jwtTokenSupport;
@@ -57,6 +61,7 @@ public class UserServiceImpl implements UserService {
     public UserDTO register(UserRegisterRequest request) {
         // 用户名在当前阶段被视为唯一登录标识，注册前必须先走一次显式存在性校验。
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            log.warn("用户注册命中重复用户名，username={}", request.getUsername());
             throw new BusinessException(ErrorCode.USERNAME_ALREADY_EXISTS);
         }
 
@@ -66,6 +71,7 @@ public class UserServiceImpl implements UserService {
         user.setDisplayName(request.getDisplayName());
 
         UserDO savedUser = userRepository.save(user);
+        log.info("用户注册已落库，userId={}, username={}", savedUser.getUserId(), savedUser.getUsername());
         return toUserDTO(savedUser);
     }
 
@@ -77,7 +83,11 @@ public class UserServiceImpl implements UserService {
         // 登录校验必须同时满足“用户存在”和“密码匹配”，统一失败为凭证错误，避免泄露更多账户信息。
         UserDO user = userRepository.findByUsername(request.getUsername())
                 .filter(item -> passwordEncoder.matches(request.getPassword(), item.getPassword()))
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
+                .orElseThrow(() -> {
+                    log.warn("用户登录失败，username={}", request.getUsername());
+                    return new BusinessException(ErrorCode.INVALID_CREDENTIALS);
+                });
+        log.info("用户登录校验通过，userId={}, username={}", user.getUserId(), user.getUsername());
         return buildLoginResponse(toAuthenticatedUser(user));
     }
 
@@ -91,19 +101,25 @@ public class UserServiceImpl implements UserService {
     public UserLoginResponse refreshToken(UserRefreshTokenRequest request) {
         ParsedJwtToken parsedJwtToken = jwtTokenSupport.parseToken(request.getRefreshToken());
         if (parsedJwtToken.getTokenType() != JwtTokenType.REFRESH) {
+            log.warn("刷新令牌类型非法");
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
         AuthenticatedUser authenticatedUser = parsedJwtToken.getAuthenticatedUser();
         if (!refreshTokenStore.exists(authenticatedUser.getUserId(), authenticatedUser.getTokenId())) {
+            log.warn("刷新令牌不存在或已失效，userId={}, tokenId={}", authenticatedUser.getUserId(), authenticatedUser.getTokenId());
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
         UserDO user = userRepository.findById(authenticatedUser.getUserId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID));
+                .orElseThrow(() -> {
+                    log.warn("刷新令牌对应用户不存在，userId={}, tokenId={}", authenticatedUser.getUserId(), authenticatedUser.getTokenId());
+                    return new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+                });
 
         // refresh token 换新时立即吊销旧 token，避免同一个 refresh token 被长期重复使用。
         refreshTokenStore.delete(authenticatedUser.getUserId(), authenticatedUser.getTokenId());
+        log.info("刷新令牌校验通过并已吊销旧令牌，userId={}, tokenId={}", authenticatedUser.getUserId(), authenticatedUser.getTokenId());
         return buildLoginResponse(toAuthenticatedUser(user));
     }
 
@@ -146,6 +162,14 @@ public class UserServiceImpl implements UserService {
 
         refreshTokenStore.save(
                 authenticatedUser.getUserId(),
+                parsedRefreshToken.getAuthenticatedUser().getTokenId(),
+                parsedRefreshToken.getExpireAt()
+        );
+        log.info(
+                "用户令牌已签发并缓存刷新令牌，userId={}, username={}, accessExpireAt={}, refreshTokenId={}, refreshExpireAt={}",
+                authenticatedUser.getUserId(),
+                authenticatedUser.getUsername(),
+                parsedAccessToken.getExpireAt(),
                 parsedRefreshToken.getAuthenticatedUser().getTokenId(),
                 parsedRefreshToken.getExpireAt()
         );

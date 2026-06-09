@@ -7,6 +7,8 @@ import com.example.ticket.payment.gateway.PaymentReconciledMessageSender;
 import com.example.ticket.payment.gateway.impl.MybatisPaymentReconciledTaskStore;
 import com.example.ticket.payment.service.PaymentReconciledRetryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 public class PaymentReconciledRetryServiceImpl
         extends AbstractReliableMessageRetryService<PaymentReconciledEvent, PaymentReconciledTaskDO>
         implements PaymentReconciledRetryService {
+    private static final Logger log = LoggerFactory.getLogger(PaymentReconciledRetryServiceImpl.class);
 
     /**
      * 构造支付收敛事件补发服务。
@@ -44,9 +47,15 @@ public class PaymentReconciledRetryServiceImpl
     }
 
     /** 使用当前时间补发。 */
-    @Override public void retryDueTasks() { super.retryDueTasks(); }
+    @Override public void retryDueTasks() {
+        log.debug("支付收敛事件补发服务开始执行默认时间补发扫描");
+        super.retryDueTasks();
+    }
     /** 使用指定时间补发。 */
-    @Override public void retryDueTasks(LocalDateTime currentTime) { super.retryDueTasks(currentTime); }
+    @Override public void retryDueTasks(LocalDateTime currentTime) {
+        log.debug("支付收敛事件补发服务开始执行指定时间补发扫描，scanTime={}", currentTime);
+        super.retryDueTasks(currentTime);
+    }
     /** 创建空任务。 */
     @Override protected PaymentReconciledTaskDO createTask() { return new PaymentReconciledTaskDO(); }
 }

@@ -3,6 +3,8 @@ package com.example.ticket.order.gateway.impl;
 import com.example.ticket.common.event.order.OrderCompletedEvent;
 import com.example.ticket.common.event.order.OrderEventConstants;
 import com.example.ticket.order.gateway.OrderCompletedMessageSender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +14,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class RabbitOrderCompletedMessageSender implements OrderCompletedMessageSender {
+    private static final Logger log = LoggerFactory.getLogger(RabbitOrderCompletedMessageSender.class);
+
     private final RabbitTemplate rabbitTemplate;
 
     /**
@@ -30,6 +34,13 @@ public class RabbitOrderCompletedMessageSender implements OrderCompletedMessageS
      */
     @Override
     public void send(OrderCompletedEvent event) {
+        log.debug(
+                "发送订单完成事件到 RabbitMQ，eventId={}, orderId={}, paymentRequestId={}, requestId={}",
+                event.getEventId(),
+                event.getOrderId(),
+                event.getPaymentRequestId(),
+                event.getRequestId()
+        );
         rabbitTemplate.convertAndSend(
                 OrderEventConstants.ORDER_CREATE_EXCHANGE,
                 OrderEventConstants.ORDER_COMPLETED_ROUTING_KEY,

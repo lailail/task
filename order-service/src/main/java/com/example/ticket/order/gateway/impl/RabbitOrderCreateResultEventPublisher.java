@@ -3,6 +3,8 @@ package com.example.ticket.order.gateway.impl;
 import com.example.ticket.common.event.order.OrderCreateResultEvent;
 import com.example.ticket.common.event.order.OrderEventConstants;
 import com.example.ticket.order.gateway.OrderCreateResultMessageSender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +14,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class RabbitOrderCreateResultEventPublisher implements OrderCreateResultMessageSender {
+    private static final Logger log = LoggerFactory.getLogger(RabbitOrderCreateResultEventPublisher.class);
+
     private final RabbitTemplate rabbitTemplate;
 
     /**
@@ -30,6 +34,14 @@ public class RabbitOrderCreateResultEventPublisher implements OrderCreateResultM
      */
     @Override
     public void send(OrderCreateResultEvent event) {
+        log.debug(
+                "发送下单结果事件到 RabbitMQ，eventId={}, eventType={}, reservationId={}, orderId={}, requestId={}",
+                event.getEventId(),
+                event.getEventType(),
+                event.getReservationId(),
+                event.getOrderId(),
+                event.getRequestId()
+        );
         rabbitTemplate.convertAndSend(
                 OrderEventConstants.ORDER_CREATE_EXCHANGE,
                 OrderEventConstants.ORDER_RESULT_ROUTING_KEY,

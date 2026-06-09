@@ -6,6 +6,8 @@ import com.example.ticket.payment.domain.PaymentResultTaskDO;
 import com.example.ticket.payment.gateway.PaymentResultEventPublisher;
 import com.example.ticket.payment.gateway.PaymentResultMessageSender;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReliablePaymentResultEventPublisher
         extends AbstractReliableMessagePublisher<PaymentResultEvent, PaymentResultTaskDO>
         implements PaymentResultEventPublisher {
+    private static final Logger log = LoggerFactory.getLogger(ReliablePaymentResultEventPublisher.class);
 
     /**
      * 构造可靠支付结果发布器。
@@ -47,6 +50,14 @@ public class ReliablePaymentResultEventPublisher
     @Override
     @Transactional
     public void publish(PaymentResultEvent event) {
+        log.debug(
+                "收到可靠支付结果事件发布请求，eventId={}, eventType={}, paymentRequestId={}, orderId={}, requestId={}",
+                event.getEventId(),
+                event.getEventType(),
+                event.getPaymentRequestId(),
+                event.getOrderId(),
+                event.getRequestId()
+        );
         super.publish(event);
     }
 

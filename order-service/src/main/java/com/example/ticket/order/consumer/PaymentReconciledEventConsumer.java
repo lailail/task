@@ -2,6 +2,8 @@ package com.example.ticket.order.consumer;
 
 import com.example.ticket.common.event.payment.PaymentReconciledEvent;
 import com.example.ticket.order.service.OrderPaymentService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +13,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class PaymentReconciledEventConsumer {
+    private static final Logger log = LoggerFactory.getLogger(PaymentReconciledEventConsumer.class);
+
     private final OrderPaymentService orderPaymentService;
 
     /**
@@ -29,6 +33,14 @@ public class PaymentReconciledEventConsumer {
      */
     @RabbitListener(queues = "${ticket.order.mq.payment-reconciled-queue}")
     public void consume(PaymentReconciledEvent event) {
+        log.info(
+                "收到支付收敛事件，eventId={}, paymentRequestId={}, orderId={}, requestId={}",
+                event.getEventId(),
+                event.getPaymentRequestId(),
+                event.getOrderId(),
+                event.getRequestId()
+        );
         orderPaymentService.handlePaymentReconciled(event);
+        log.info("支付收敛事件处理完成，eventId={}, paymentRequestId={}, orderId={}", event.getEventId(), event.getPaymentRequestId(), event.getOrderId());
     }
 }

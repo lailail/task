@@ -12,6 +12,8 @@ import com.example.ticket.order.gateway.OrderStockReleaseEventPublisher;
 import com.example.ticket.order.mapper.TicketOrderMapper;
 import com.example.ticket.order.service.OrderPaymentService;
 import com.example.ticket.order.support.OrderConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ import java.util.UUID;
  */
 @Service
 public class OrderPaymentServiceImpl implements OrderPaymentService {
+    private static final Logger log = LoggerFactory.getLogger(OrderPaymentServiceImpl.class);
     private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     private final TicketOrderMapper ticketOrderMapper;
@@ -59,12 +62,14 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
     public void handlePaymentResult(PaymentResultEvent event) {
         TicketOrderDO order = ticketOrderMapper.selectById(event.getOrderId());
         if (order == null || !OrderConstants.ORDER_STATUS_CREATED.equals(order.getOrderStatus())) {
+            log.warn("支付结果事件未触发订单状态流转，orderId={}, paymentRequestId={}, eventType={}, currentOrderStatus={}", event.getOrderId(), event.getPaymentRequestId(), event.getEventType(), order == null ? null : order.getOrderStatus());
             return;
         }
 
         if (PaymentEventConstants.PAYMENT_SUCCEEDED.equals(event.getEventType())) {
             // 只有真正完成 CREATED -> PAID 条件更新的线程，才算本次状态推进生效。
-            ticketOrderMapper.markPaidIfCreated(order.getOrderId(), toLocalDateTime(event.getOccurredAt()));
+            int updated = ticketOrderMapper.markPaidIfCreated(order.getOrderId(), toLocalDateTime(event.getOccurredAt()));
+            log.info("支付成功事件处理完成，orderId={}, paymentRequestId={}, updated={}, targetStatus={}", order.getOrderId(), event.getPaymentRequestId(), updated, OrderConstants.ORDER_STATUS_PAID);
             return;
         }
 
@@ -72,9 +77,11 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
                 || PaymentEventConstants.PAYMENT_EXPIRED.equals(event.getEventType())) {
             // 失败或过期都收敛到已取消，但只有条件更新成功后才允许继续发布释放事件。
             if (ticketOrderMapper.markCancelledIfCreated(order.getOrderId(), LocalDateTime.now(DEFAULT_ZONE_ID)) <= 0) {
+                log.warn("支付失败事件未能推进订单取消，orderId={}, paymentRequestId={}, eventType={}", order.getOrderId(), event.getPaymentRequestId(), event.getEventType());
                 return;
             }
             orderStockReleaseEventPublisher.publish(buildReleaseEvent(order, event));
+            log.info("支付失败事件已取消订单并发布库存释放事件，orderId={}, paymentRequestId={}, eventType={}, reservationId={}", order.getOrderId(), event.getPaymentRequestId(), event.getEventType(), order.getReservationId());
         }
     }
 
@@ -89,14 +96,17 @@ public class OrderPaymentServiceImpl implements OrderPaymentService {
         TicketOrderDO order = ticketOrderMapper.selectById(event.getOrderId());
         if (order == null || !OrderConstants.ORDER_STATUS_PAID.equals(order.getOrderStatus())) {
             // 只有已支付订单才允许被推进到完成态，其他状态一律忽略，保证重复消费与非法状态都安全。
+            log.warn("支付收敛事件未触发订单完成，orderId={}, paymentRequestId={}, currentOrderStatus={}", event.getOrderId(), event.getPaymentRequestId(), order == null ? null : order.getOrderStatus());
             return;
         }
 
         // 只有真正完成 PAID -> COMPLETED 条件更新的线程，才允许对外发布完成事件。
         if (ticketOrderMapper.markCompletedIfPaid(order.getOrderId()) <= 0) {
+            log.warn("支付收敛事件命中并发竞争，未能推进订单完成，orderId={}, paymentRequestId={}", order.getOrderId(), event.getPaymentRequestId());
             return;
         }
         orderCompletedEventPublisher.publish(buildCompletedEvent(order, event));
+        log.info("支付收敛事件已推进订单完成并发布完成事件，orderId={}, paymentRequestId={}, reservationId={}", order.getOrderId(), event.getPaymentRequestId(), order.getReservationId());
     }
 
     /**

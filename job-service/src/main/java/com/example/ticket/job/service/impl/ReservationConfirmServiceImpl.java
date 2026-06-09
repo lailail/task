@@ -5,6 +5,8 @@ import com.example.ticket.job.domain.JobReservationRecordDO;
 import com.example.ticket.job.mapper.JobReservationRecordMapper;
 import com.example.ticket.job.service.ReservationConfirmService;
 import com.example.ticket.job.support.JobConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ReservationConfirmServiceImpl implements ReservationConfirmService {
+    private static final Logger log = LoggerFactory.getLogger(ReservationConfirmServiceImpl.class);
+
     private final JobReservationRecordMapper reservationRecordMapper;
 
     /**
@@ -34,19 +38,23 @@ public class ReservationConfirmServiceImpl implements ReservationConfirmService 
     @Transactional
     public void handleOrderCreateResult(OrderCreateResultEvent event) {
         if (!JobConstants.ORDER_RESULT_TYPE_CREATED.equals(event.getEventType())) {
+            log.debug("订单结果事件不是创建成功，跳过预扣确认，eventId={}, eventType={}", event.getEventId(), event.getEventType());
             return;
         }
 
         JobReservationRecordDO record = reservationRecordMapper.selectById(event.getReservationId());
         if (record == null) {
+            log.warn("预扣确认未找到预扣记录，eventId={}, reservationId={}, orderId={}", event.getEventId(), event.getReservationId(), event.getOrderId());
             return;
         }
         if (!JobConstants.RESERVATION_STATUS_RESERVED.equals(record.getReservationStatus())) {
+            log.warn("预扣确认跳过非法状态记录，eventId={}, reservationId={}, currentStatus={}", event.getEventId(), event.getReservationId(), record.getReservationStatus());
             return;
         }
 
         record.setOrderId(event.getOrderId());
         record.setReservationStatus(JobConstants.RESERVATION_STATUS_CONFIRMED);
         reservationRecordMapper.updateById(record);
+        log.info("预扣记录已确认，eventId={}, reservationId={}, orderId={}, requestId={}", event.getEventId(), event.getReservationId(), event.getOrderId(), event.getRequestId());
     }
 }

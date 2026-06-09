@@ -6,6 +6,8 @@ import com.example.ticket.seckill.domain.OrderCreateTaskDO;
 import com.example.ticket.seckill.gateway.OrderCreateEventPublisher;
 import com.example.ticket.seckill.gateway.OrderCreateMessageSender;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReliableOrderCreateEventPublisher
         extends AbstractReliableMessagePublisher<OrderCreateRequestedEvent, OrderCreateTaskDO>
         implements OrderCreateEventPublisher {
+    private static final Logger log = LoggerFactory.getLogger(ReliableOrderCreateEventPublisher.class);
 
     /**
      * 构造抢票侧可靠下单事件发布器。
@@ -47,6 +50,13 @@ public class ReliableOrderCreateEventPublisher
     @Override
     @Transactional
     public void publish(OrderCreateRequestedEvent event) {
+        log.debug(
+                "收到可靠下单请求事件发布请求，eventId={}, reservationId={}, requestId={}, idempotencyKey={}",
+                event.getEventId(),
+                event.getReservationId(),
+                event.getRequestId(),
+                event.getIdempotencyKey()
+        );
         super.publish(event);
     }
 
