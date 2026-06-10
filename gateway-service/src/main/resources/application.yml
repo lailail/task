@@ -20,14 +20,22 @@ spring:
               uri: lb://seckill-service
               predicates:
                 - Path=/api/v1/seckill/**
+            - id: order-service-route
+              uri: lb://order-service
+              predicates:
+                - Path=/api/v1/orders/**,/api/v1/internal/orders/**
+            - id: payment-service-route
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/v1/payments/**,/api/v1/internal/payment-reconcile/**
     nacos:
       discovery:
-        enabled: ${TICKET_NACOS_DISCOVERY_ENABLED:false}
+        enabled: ${TICKET_NACOS_DISCOVERY_ENABLED:true}
         server-addr: ${TICKET_NACOS_SERVER_ADDR:127.0.0.1:8848}
         namespace: ${TICKET_NACOS_NAMESPACE:public}
         group: ${TICKET_NACOS_GROUP:DEFAULT_GROUP}
       config:
-        enabled: ${TICKET_NACOS_CONFIG_ENABLED:false}
+        enabled: ${TICKET_NACOS_CONFIG_ENABLED:true}
         server-addr: ${TICKET_NACOS_SERVER_ADDR:127.0.0.1:8848}
         namespace: ${TICKET_NACOS_NAMESPACE:public}
         group: ${TICKET_NACOS_GROUP:DEFAULT_GROUP}
