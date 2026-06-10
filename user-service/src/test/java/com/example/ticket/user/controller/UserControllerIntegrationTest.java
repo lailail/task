@@ -12,8 +12,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -41,12 +45,12 @@ class UserControllerIntegrationTest {
         UserDTO user = new UserDTO();
         user.setUserId(1L);
         user.setUsername("alice");
-        user.setDisplayName("Alice");
+        user.setDisplayName("前台中文昵称");
 
         UserLoginResponse loginResponse = new UserLoginResponse();
         loginResponse.setUserId(1L);
         loginResponse.setUsername("alice");
-        loginResponse.setDisplayName("Alice");
+        loginResponse.setDisplayName("前台中文昵称");
         loginResponse.setAccessToken("access-token");
         loginResponse.setRefreshToken("refresh-token");
         loginResponse.setTokenType("Bearer");
@@ -57,23 +61,36 @@ class UserControllerIntegrationTest {
     }
 
     /**
-     * 注册接口应返回统一成功响应。
+     * 注册接口应在中文昵称场景下返回统一成功响应。
      */
     @Test
-    void should_register_user_via_http() throws Exception {
-        mockMvc.perform(post("/api/v1/users/register")
+    void should_register_user_with_chinese_display_name_via_http() throws Exception {
+        org.mockito.ArgumentCaptor<com.example.ticket.user.request.UserRegisterRequest> requestCaptor =
+                org.mockito.ArgumentCaptor.forClass(com.example.ticket.user.request.UserRegisterRequest.class);
+        MvcResult result = mockMvc.perform(post("/api/v1/users/register")
+                        .characterEncoding(StandardCharsets.UTF_8.name())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "username": "alice",
                                   "password": "password123",
-                                  "displayName": "Alice"
+                                  "displayName": "前台中文昵称"
                                 }
-                                """))
+                                """.getBytes(StandardCharsets.UTF_8)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.username").value("alice"))
-                .andExpect(jsonPath("$.data.displayName").value("Alice"));
+                .andExpect(jsonPath("$.data.displayName").value("前台中文昵称"))
+                .andReturn();
+
+        verify(userService).register(requestCaptor.capture());
+        String requestBody = result.getRequest().getContentAsString();
+        String responseBody = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        org.junit.jupiter.api.Assertions.assertEquals("前台中文昵称", requestCaptor.getValue().getDisplayName());
+        org.junit.jupiter.api.Assertions.assertEquals(StandardCharsets.UTF_8.name(), result.getRequest().getCharacterEncoding());
+        org.junit.jupiter.api.Assertions.assertEquals(StandardCharsets.UTF_8.name(), result.getResponse().getCharacterEncoding());
+        org.junit.jupiter.api.Assertions.assertTrue(requestBody.contains("\"displayName\": \"前台中文昵称\""));
+        org.junit.jupiter.api.Assertions.assertTrue(responseBody.contains("\"displayName\":\"前台中文昵称\""));
     }
 
     /**

@@ -1,8 +1,9 @@
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
-import { Button, Input, Popconfirm, Select, Space, message } from 'antd';
+import { App, Button, Input, Popconfirm, Select, Space } from 'antd';
 import { useRef, useState } from 'react';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import PageState from '@/components/PageState';
 import StatusTag from '@/components/StatusTag';
 import {
   ignoreIssue,
@@ -20,7 +21,9 @@ import { tokenStore } from '@/utils/token';
  */
 const PaymentReconcileIssuesPage = () => {
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const { message } = App.useApp();
   const [filters, setFilters] = useState<PaymentReconcileIssueQuery>({});
+  const [errorMessage, setErrorMessage] = useState('');
 
   /**
    * 构造人工操作请求体。
@@ -46,9 +49,15 @@ const PaymentReconcileIssuesPage = () => {
     issueId: number,
     successText: string,
   ) => {
-    await action(String(issueId), buildActionPayload());
-    message.success(successText);
-    actionRef.current?.reload();
+    try {
+      await action(String(issueId), buildActionPayload());
+      message.success(successText);
+      actionRef.current?.reload();
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : '人工治理操作失败，请稍后重试',
+      );
+    }
   };
 
   const columns: ProColumns<PaymentReconcileIssue>[] = [
@@ -181,11 +190,40 @@ const PaymentReconcileIssuesPage = () => {
         pagination={{ pageSize: 10 }}
         columns={columns}
         request={async () => {
-          const data = await queryIssues(filters);
-          return {
-            data,
-            success: true,
-          };
+          try {
+            setErrorMessage('');
+            const data = await queryIssues(filters);
+            return {
+              data,
+              success: true,
+            };
+          } catch (error) {
+            setErrorMessage(
+              error instanceof Error
+                ? error.message
+                : '支付对账异常列表加载失败，请稍后重试',
+            );
+            return {
+              data: [],
+              success: true,
+            };
+          }
+        }}
+        locale={{
+          emptyText: errorMessage ? (
+            <PageState
+              type="error"
+              title="支付对账异常列表加载失败"
+              description={errorMessage}
+              actionText="重新加载"
+              onAction={() => actionRef.current?.reload()}
+            />
+          ) : (
+            <PageState
+              type="empty"
+              description="当前没有匹配的支付对账异常记录。"
+            />
+          ),
         }}
       />
     </PageContainer>

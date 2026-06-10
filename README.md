@@ -33,6 +33,12 @@
 - `payment-service` 支付结果可靠消息补偿、支付对账异常内部查询
 - `ticket.payment.reconciled -> PAID/COMPLETED -> ticket.order.completed` 一致性终态链路
 - `frontend-admin` 后台管理端第一轮骨架与核心治理页面
+- `frontend-admin` 后台管理端关键页面真实联调收口与统一状态反馈
+- `job-service` 预扣记录内部分页查询接口
+- `frontend-admin` 预扣记录真实查询页第一轮落地
+- 六类补偿任务内部分页查询接口
+- `frontend-admin` 补偿任务查询页第一轮落地
+- `frontend-web` 用户前台第一轮骨架与主链路页面
 
 当前已具备的关键能力：
 
@@ -55,6 +61,14 @@
 - 订单完成事件发送失败后的补偿任务登记、定时补发与发送状态收敛
 - 订单 `PAID -> COMPLETED` 一致性终态收口
 - 后台管理端登录、活动查询、订单状态单查、支付对账异常治理与观测入口
+- 后台管理端预扣记录分页查询与状态筛选
+- 后台管理端六类补偿任务分页查询与任务域切换
+- 后台管理端认证失效统一清会话并跳回登录页
+- 后台管理端活动、订单、支付对账关键页面统一加载态、空态、错误态
+- 用户前台活动首页、活动详情、登录、注册、抢票结果、订单入口第一轮页面
+- 用户前台统一认证会话、令牌刷新与网关代理接入
+- 用户前台抢票结果第二轮细化：稳定错误态映射、结果说明强化、订单入口上下文承接
+- `gateway-service` 本地直连联调模式，可在关闭 `Nacos Discovery` 时继续承接前台真实联调
 
 ## 前端管理端
 
@@ -66,10 +80,25 @@
 - 活动列表页
 - 活动详情页
 - 订单状态单查页
+- 订单状态页最小人工取消入口
+- 预扣记录页
+- 补偿任务页
 - 支付对账异常列表页
 - 支付对账异常详情页
 - 支付对账异常人工治理入口
 - 观测入口页
+
+当前已补齐的联调细节：
+
+- `refreshToken` 失效后统一清理登录态并跳回登录页
+- 活动列表页支持刷新、加载中、无数据、请求失败重试
+- 活动详情页支持加载中、详情缺失、请求失败重试
+- 订单状态单查页支持首屏引导、查询中、无结果、查询失败
+- 订单状态页已接入待支付订单的人工取消动作
+- 预扣记录页支持分页、状态筛选、空态与失败重试
+- 补偿任务页支持六个任务域 Tab、统一分页、状态筛选、事件键/业务键筛选、空态与失败重试
+- 支付对账异常列表页支持空态、请求失败重试、人工治理失败反馈
+- 支付对账异常详情页支持加载中、详情缺失、请求失败重试
 
 启动方式：
 
@@ -85,9 +114,133 @@ npm start
 
 - 当前 `frontend-admin` 基于 `Ant Design Pro v6 + Umi Max 4`
 - 当前开发代理已配置为 `/api -> http://localhost:8080`
-- 当前 `gateway-service` 已覆盖 `user-service`、`ticket-service`、`seckill-service`、`order-service`、`payment-service` 的第一版 HTTP 路由
-- 当前官方推荐 `Node >= 22`；本地在 `Node 20.19.6` 下已验证可安装、测试、构建和启动，但会出现 `EBADENGINE` 警告
+- 当前 `gateway-service` 已覆盖 `user-service`、`ticket-service`、`seckill-service`、`order-service`、`payment-service`、`job-service` 的第一版 HTTP 路由
+- 当前官方推荐 `Node >= 22`；本机已升级并验证 `Node 22.22.3`、`npm 11.7.0`
 - 当前开发服务在本机实际启动于 `http://localhost:8001`，说明 `Umi` 会在默认端口被占用时自动选择下一个可用端口
+
+后台联调最小服务集合与顺序：
+
+1. 启动 `user-service`
+2. 启动 `ticket-service`
+3. 启动 `order-service`
+4. 启动 `payment-service`
+5. 启动 `gateway-service`
+6. 启动 `frontend-admin`
+
+当前可用于后台联调的关键接口入口：
+
+- `GET http://localhost:8080/actuator/health`
+- `GET http://localhost:8080/api/v1/activities`
+- `GET http://localhost:8080/api/v1/internal/orders/1/status`
+- `GET http://localhost:8080/api/v1/internal/reservation-records`
+- `GET http://localhost:8080/api/v1/internal/order-create-tasks`
+- `GET http://localhost:8080/api/v1/internal/order-result-tasks`
+- `GET http://localhost:8080/api/v1/internal/order-complete-tasks`
+- `GET http://localhost:8080/api/v1/internal/stock-release-tasks`
+- `GET http://localhost:8080/api/v1/internal/payment-result-tasks`
+- `GET http://localhost:8080/api/v1/internal/payment-reconciled-tasks`
+- `GET http://localhost:8080/api/v1/internal/payment-reconcile/issues`
+
+当前已验证的前端真实页面：
+
+- 登录成功后可跳转到活动管理页
+- 活动管理页可通过真实后端加载活动列表
+- 补偿任务页可通过真实后端切换并加载六类补偿任务
+- 浏览器控制台中的 `React Intl` 菜单缺失告警已清理
+- 浏览器控制台中的 `antd message` 静态上下文告警已清理
+
+当前前端阶段结论：
+
+- `frontend-admin` 第一轮核心治理页已基本成型
+- 后台真实联调已覆盖活动、订单状态、预扣记录、补偿任务、支付对账异常
+- `frontend-web` 第一轮用户主链路已完成真实联调收口
+
+下一步前端计划：
+
+- 细化用户前台错误态、空态与抢票反馈
+- 补充结果页与后续订单状态感知
+- 等后端具备完整用户订单列表接口后，再升级“我的订单”页
+
+## 用户前台
+
+当前仓库已新增 `frontend-web`，用于承接第一版用户主链路演示。
+
+当前已落地页面：
+
+- 活动首页
+- 活动详情页
+- 登录页
+- 注册页
+- 抢票结果页
+- 我的订单第一轮占位页
+
+当前已落地的公共能力：
+
+- 统一请求层
+- `accessToken + refreshToken` 本地会话存储
+- `401` 自动刷新令牌
+- 刷新失败统一清理登录态并跳回登录页
+- 服务端首屏取数
+- 页面加载态、空态、错误态组件
+- 网关本地直连联调模式
+
+启动方式：
+
+```bash
+cd frontend-web
+npm install
+npm test
+npm run lint
+npm run build
+npm run dev -- --port 3001
+```
+
+补充说明：
+
+- 当前 `frontend-web` 基于 `Next.js 16 + TypeScript + Tailwind CSS v4 + shadcn/ui`
+- 当前已通过 `npm test`、`npm run lint`、`npm run build`
+- 当前默认运行地址为 `http://localhost:3001`
+- 当前 `/api/**` 与 `/actuator/**` 已代理到 `gateway-service`
+- 当前 `gateway-service` 已支持通过 `TICKET_GATEWAY_*_SERVICE_URI` 显式指定本地直连地址；关闭 `TICKET_NACOS_DISCOVERY_ENABLED` 后，仍可用 `http://127.0.0.1:8081/8082/8083...` 做前台联调
+- 当前首页与活动详情依赖真实后端活动接口，后端未启动时会进入设计中的错误态
+- 当前“我的订单”页仍是第一轮占位页，尚未接完整用户订单列表能力
+- `user-service` 已显式固定 `server.servlet.encoding=UTF-8`；如果在 Windows PowerShell 里直调注册接口，仍建议同时使用 `application/json; charset=utf-8`，避免终端自身编码把中文昵称提前转成 `????`
+
+用户前台联调最小服务集合与顺序：
+
+1. 启动 `user-service`
+2. 启动 `ticket-service`
+3. 启动 `seckill-service`
+4. 启动 `gateway-service`
+5. 启动 `frontend-web`
+
+如果本地这轮联调不经过 `Nacos Discovery`，可按下面方式启动网关：
+
+```bash
+TICKET_NACOS_DISCOVERY_ENABLED=false
+TICKET_NACOS_CONFIG_ENABLED=false
+TICKET_GATEWAY_USER_SERVICE_URI=http://127.0.0.1:8081
+TICKET_GATEWAY_TICKET_SERVICE_URI=http://127.0.0.1:8082
+TICKET_GATEWAY_SECKILL_SERVICE_URI=http://127.0.0.1:8083
+TICKET_GATEWAY_ORDER_SERVICE_URI=http://127.0.0.1:8084
+TICKET_GATEWAY_JOB_SERVICE_URI=http://127.0.0.1:8085
+TICKET_GATEWAY_PAYMENT_SERVICE_URI=http://127.0.0.1:8086
+```
+
+如果要继续验证后续异步结果链路，再补启：
+
+6. 启动 `order-service`
+7. 启动 `job-service`
+
+当前已验证的用户前台真实页面：
+
+- 活动首页可通过真实后端加载活动列表与主活动卡片
+- 活动详情页可通过真实后端加载票种与库存信息
+- 未登录状态下点击“立即抢票”会跳转登录页，并带回跳参数
+- 登录成功后可回到活动详情页
+- 登录后提交抢票可通过真实后端进入结果页，并展示真实 `reservationId`、状态与过期时间
+- 结果页已区分库存不足、重复提交、活动不可抢和系统失败等稳定反馈
+- “我的订单”入口已可承接最近一次抢票上下文，但仍未接完整用户订单列表
 
 ## 本地基础设施
 
@@ -106,6 +259,9 @@ npm start
 - `.env.example`
 - `docker/mysql/init/010_schema.sql`
 - `docker/mysql/init/020_seed_data.sql`
+- `docker/mysql/init/021_fix_demo_seed_utf8.sql`
+- `docker/mysql/init/022_fix_demo_user_display_name_utf8.sql`
+- `docker/mysql/init/023_fix_demo_activity_typo_utf8.sql`
 - `docker/mysql/init/030_stock_release_task.sql`
 - `docker/mysql/init/040_order_result_task.sql`
 - `docker/mysql/init/050_order_create_task.sql`
@@ -220,3 +376,19 @@ docker compose config
   - 未收敛记录由对账任务重发支付结果事件并沉淀 `payment_reconcile_issue`
   - 收敛成功后可靠发送 `ticket.payment.reconciled`
   - `order-service` 推进到 `COMPLETED` 并可靠发送 `ticket.order.completed`
+## 2026-06-10 用户侧联调补充
+
+本轮已补齐：
+
+- 用户侧结果感知接口：`GET /api/v1/orders/reservations/{reservationId}`
+- 我的订单真实接口：`GET /api/v1/orders`
+- `frontend-web` 结果页真实状态刷新
+- `frontend-web` 我的订单真实分页展示
+- 用户链路压测脚本：`scripts/loadtest/run-user-flow-baseline.ps1`
+
+验证结果：
+
+- `mvn -q -pl order-service test` 通过。
+- `cd frontend-web && npm test && npm run lint && npm run build` 通过。
+- 小样本压测已输出到 `docs/05-运行报告/2026-06-10-user-flow-baseline.json`。
+- 当前运行环境中 `/api/v1/orders/**` 经网关返回 `503`，需重启或重新部署 `order-service` 后复测。

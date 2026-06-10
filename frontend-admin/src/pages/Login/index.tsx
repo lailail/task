@@ -1,6 +1,6 @@
 import { LoginFormPage, ProFormText } from '@ant-design/pro-components';
 import { history, useLocation, useModel } from '@umijs/max';
-import { Alert, message } from 'antd';
+import { Alert, App } from 'antd';
 import { useState } from 'react';
 import { HOME_PATH } from '@/constants/auth';
 import { login } from '@/services/user/api';
@@ -13,6 +13,7 @@ import { tokenStore } from '@/utils/token';
 const LoginPage = () => {
   const location = useLocation();
   const { setInitialState } = useModel('@@initialState');
+  const { message } = App.useApp();
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 

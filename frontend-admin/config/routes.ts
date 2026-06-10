@@ -30,6 +30,20 @@ export default [
     component: './Orders/Status',
   },
   {
+    path: '/reservation-records',
+    name: '预扣记录',
+    icon: 'DatabaseOutlined',
+    access: 'canAdmin',
+    component: './ReservationRecords/List',
+  },
+  {
+    path: '/compensation-tasks',
+    name: '补偿任务',
+    icon: 'ProfileOutlined',
+    access: 'canAdmin',
+    component: './CompensationTasks',
+  },
+  {
     path: '/payment-reconcile/issues',
     name: '支付对账异常',
     icon: 'WarningOutlined',

@@ -4,7 +4,10 @@ import com.example.ticket.common.auth.AuthenticatedUser;
 import com.example.ticket.common.response.ApiResponse;
 import com.example.ticket.common.web.AuthenticatedUserHeaderSupport;
 import com.example.ticket.order.request.OrderCancelRequest;
+import com.example.ticket.order.request.UserOrderQueryRequest;
 import com.example.ticket.order.response.OrderStatusResponse;
+import com.example.ticket.order.response.ReservationResultResponse;
+import com.example.ticket.order.response.UserOrderPageResponse;
 import com.example.ticket.order.service.OrderCancelService;
 import com.example.ticket.order.service.OrderQueryService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 订单接口控制器。
- * 用于承接主动取消订单与内部订单状态查询入口，并把认证、校验后的请求转交给服务层。
+ * 用于承接用户侧订单查询、订单取消和内部订单状态查询入口，并把认证后的请求转交给服务层。
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -42,6 +45,50 @@ public class OrderController {
     }
 
     /**
+     * 查询当前用户自己的订单分页。
+     *
+     * @param request 分页查询请求
+     * @param httpServletRequest HTTP 请求
+     * @return 用户订单分页响应
+     */
+    @GetMapping("/orders")
+    public ApiResponse<UserOrderPageResponse> queryCurrentUserOrders(
+            UserOrderQueryRequest request,
+            HttpServletRequest httpServletRequest
+    ) {
+        AuthenticatedUser authenticatedUser =
+                AuthenticatedUserHeaderSupport.extractAuthenticatedUser(httpServletRequest);
+        log.info("收到用户订单分页查询请求，userId={}, current={}, pageSize={}",
+                authenticatedUser.getUserId(), request.getCurrent(), request.getPageSize());
+        UserOrderPageResponse response = orderQueryService.queryCurrentUserOrders(authenticatedUser, request);
+        log.info("用户订单分页查询完成，userId={}, current={}, pageSize={}, total={}",
+                authenticatedUser.getUserId(), response.getCurrent(), response.getPageSize(), response.getTotal());
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * 查询当前用户某次抢票结果。
+     *
+     * @param reservationId 预扣标识
+     * @param httpServletRequest HTTP 请求
+     * @return 抢票结果感知响应
+     */
+    @GetMapping("/orders/reservations/{reservationId}")
+    public ApiResponse<ReservationResultResponse> queryReservationResult(
+            @PathVariable String reservationId,
+            HttpServletRequest httpServletRequest
+    ) {
+        AuthenticatedUser authenticatedUser =
+                AuthenticatedUserHeaderSupport.extractAuthenticatedUser(httpServletRequest);
+        log.info("收到用户抢票结果查询请求，userId={}, reservationId={}",
+                authenticatedUser.getUserId(), reservationId);
+        ReservationResultResponse response = orderQueryService.queryReservationResult(authenticatedUser, reservationId);
+        log.info("用户抢票结果查询完成，userId={}, reservationId={}, resultStatus={}",
+                authenticatedUser.getUserId(), reservationId, response.getResultStatus());
+        return ApiResponse.success(response);
+    }
+
+    /**
      * 取消当前用户自己的待支付订单。
      *
      * @param orderId 订单标识
@@ -57,9 +104,11 @@ public class OrderController {
     ) {
         AuthenticatedUser authenticatedUser =
                 AuthenticatedUserHeaderSupport.extractAuthenticatedUser(httpServletRequest);
-        log.info("收到取消订单请求，requestId={}, orderId={}, userId={}, reason={}", request.getRequestId(), orderId, authenticatedUser.getUserId(), request.getReason());
+        log.info("收到取消订单请求，requestId={}, orderId={}, userId={}, reason={}",
+                request.getRequestId(), orderId, authenticatedUser.getUserId(), request.getReason());
         orderCancelService.cancelOrder(authenticatedUser, orderId, request);
-        log.info("取消订单请求处理完成，requestId={}, orderId={}, userId={}", request.getRequestId(), orderId, authenticatedUser.getUserId());
+        log.info("取消订单请求处理完成，requestId={}, orderId={}, userId={}",
+                request.getRequestId(), orderId, authenticatedUser.getUserId());
         return ApiResponse.success(null);
     }
 

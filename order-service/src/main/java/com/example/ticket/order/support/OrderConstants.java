@@ -29,6 +29,17 @@ public final class OrderConstants {
     public static final String ORDER_RESULT_TYPE_CREATED = OrderEventConstants.ORDER_CREATED;
     public static final String ORDER_RESULT_TYPE_CREATE_FAILED = OrderEventConstants.ORDER_CREATE_FAILED;
     public static final String ORDER_RESULT_TYPE_COMPLETED = OrderEventConstants.ORDER_COMPLETED;
+    public static final long DEFAULT_USER_ORDER_PAGE_NO = 1L;
+    public static final long DEFAULT_USER_ORDER_PAGE_SIZE = 10L;
+    public static final long MAX_USER_ORDER_PAGE_SIZE = 50L;
+
+    public static final String USER_RESULT_STATUS_RESERVED = "RESERVED";
+    public static final String USER_RESULT_STATUS_ORDER_CREATED = "ORDER_CREATED";
+    public static final String USER_RESULT_STATUS_ORDER_PAID = "ORDER_PAID";
+    public static final String USER_RESULT_STATUS_ORDER_COMPLETED = "ORDER_COMPLETED";
+    public static final String USER_RESULT_STATUS_ORDER_CLOSED = "ORDER_CLOSED";
+    public static final String USER_RESULT_STATUS_ORDER_CANCELLED = "ORDER_CANCELLED";
+    public static final String USER_RESULT_STATUS_NOT_FOUND = "NOT_FOUND";
 
     /**
      * 禁止实例化常量类。
