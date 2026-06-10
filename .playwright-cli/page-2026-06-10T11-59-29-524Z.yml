@@ -1,0 +1,71 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e37] [cursor=pointer]:
+    - img [ref=e38]
+  - alert [ref=e41]
+  - generic [ref=e71]:
+    - banner [ref=e72]:
+      - generic [ref=e73]:
+        - link "Ticket Flash 抢票现场" [ref=e74] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e76]:
+            - paragraph [ref=e77]: Ticket Flash
+            - paragraph [ref=e78]: 抢票现场
+        - navigation [ref=e79]:
+          - link "活动" [ref=e80] [cursor=pointer]:
+            - /url: /
+          - link "我的订单" [ref=e81] [cursor=pointer]:
+            - /url: /orders
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - paragraph [ref=e84]: 前台中文昵称
+            - paragraph [ref=e85]: "@webzh1781092500"
+          - button "退出" [ref=e86]
+    - main [ref=e87]:
+      - generic [ref=e89]:
+        - generic [ref=e90]:
+          - paragraph [ref=e91]: Live Drop / 抢票进行时
+          - heading "把后端真实秒杀链路，压缩成用户一眼能看懂的抢票入口。" [level=1] [ref=e92]
+          - paragraph [ref=e93]: 当前首屏不做普通商城式堆叠，而是直接把“正在演示的主活动、当前销售状态、下一步动作” 放在同一个视觉平面里。
+          - generic [ref=e94]:
+            - link "进入主活动详情" [ref=e95] [cursor=pointer]:
+              - /url: /activities/1001
+            - link "查看我的订单入口" [ref=e96] [cursor=pointer]:
+              - /url: /orders
+        - generic [ref=e97]:
+          - generic [ref=e98]:
+            - paragraph [ref=e99]: 当前主活动
+            - generic [ref=e100]: 抢票进行中
+          - heading "五月天上海演唱会" [level=2] [ref=e101]
+          - generic [ref=e102]:
+            - generic [ref=e103]:
+              - paragraph [ref=e104]: 城市
+              - paragraph [ref=e105]: 上海
+            - generic [ref=e106]:
+              - paragraph [ref=e107]: 场馆
+              - paragraph [ref=e108]: 上海体育场
+          - paragraph [ref=e109]: 当前状态：抢票进行中。可以直接进入详情并发起抢票。
+      - generic [ref=e110]:
+        - generic [ref=e111]:
+          - generic [ref=e112]:
+            - paragraph [ref=e113]: Activities
+            - heading "活动列表" [level=2] [ref=e114]
+          - button "当前共 2 场" [ref=e115]
+        - generic [ref=e116]:
+          - article [ref=e117]:
+            - generic [ref=e118]:
+              - generic [ref=e119]: 抢票进行中
+              - heading "五月天上海演唱会" [level=3] [ref=e120]
+              - paragraph [ref=e121]: 上海 / 上海体育场
+            - generic [ref=e122]:
+              - paragraph [ref=e123]: 当前状态：抢票进行中
+              - link "查看详情并进入抢票" [ref=e124] [cursor=pointer]:
+                - /url: /activities/1001
+          - article [ref=e125]:
+            - generic [ref=e126]:
+              - generic [ref=e127]: 即将开售
+              - heading "国家大剧院话剧专场" [level=3] [ref=e128]
+              - paragraph [ref=e129]: 北京 / 国家大剧院
+            - generic [ref=e130]:
+              - paragraph [ref=e131]: 当前状态：即将开售
+              - link "查看详情并进入抢票" [ref=e132] [cursor=pointer]:
+                - /url: /activities/1002

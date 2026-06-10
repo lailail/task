@@ -8,6 +8,9 @@ import com.example.ticket.common.reliable.ReliableMessageTaskStatus;
  * 用于集中维护预扣状态、失败释放和库存回补链路中的状态值、结果码与来源标识。
  */
 public final class JobConstants {
+    public static final long DEFAULT_PAGE_CURRENT = 1L;
+    public static final long DEFAULT_PAGE_SIZE = 10L;
+    public static final long MAX_PAGE_SIZE = 100L;
     public static final String RESERVATION_STATUS_RESERVED = "RESERVED";
     public static final String RESERVATION_STATUS_CONFIRMED = "CONFIRMED";
     public static final String RESERVATION_STATUS_RELEASED = "RELEASED";

@@ -120,36 +120,44 @@ async function refreshAccessToken(): Promise<void> {
   }
 
   refreshPromise = (async () => {
-    const response = await fetch(REFRESH_TOKEN_PATH, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refreshToken }),
-    });
+    try {
+      const response = await fetch(REFRESH_TOKEN_PATH, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
+      });
 
-    if (response.status === 401) {
+      if (response.status === 401) {
+        handleAuthExpired();
+      }
+
+      const payload = await parseApiResponse<{
+        accessToken: string;
+        refreshToken: string;
+        username: string;
+        displayName?: string;
+      }>(response);
+
+      if (payload.code !== API_SUCCESS_CODE || !payload.data) {
+        handleAuthExpired();
+      }
+
+      tokenStore.setSession({
+        accessToken: payload.data.accessToken,
+        refreshToken: payload.data.refreshToken,
+        username: payload.data.username,
+        displayName: payload.data.displayName,
+      });
+    } catch (error) {
+      if (error instanceof AuthExpiredError) {
+        throw error;
+      }
+
       handleAuthExpired();
     }
-
-    const payload = await parseApiResponse<{
-      accessToken: string;
-      refreshToken: string;
-      username: string;
-      displayName?: string;
-    }>(response);
-
-    if (payload.code !== API_SUCCESS_CODE || !payload.data) {
-      handleAuthExpired();
-    }
-
-    tokenStore.setSession({
-      accessToken: payload.data.accessToken,
-      refreshToken: payload.data.refreshToken,
-      username: payload.data.username,
-      displayName: payload.data.displayName,
-    });
   })().finally(() => {
     refreshPromise = null;
   });

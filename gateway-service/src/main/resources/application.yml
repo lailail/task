@@ -9,25 +9,29 @@ spring:
         webflux:
           routes:
             - id: user-service-route
-              uri: lb://user-service
+              uri: ${TICKET_GATEWAY_USER_SERVICE_URI:lb://user-service}
               predicates:
                 - Path=/api/v1/users/**
             - id: ticket-service-route
-              uri: lb://ticket-service
+              uri: ${TICKET_GATEWAY_TICKET_SERVICE_URI:lb://ticket-service}
               predicates:
                 - Path=/api/v1/activities/**
             - id: seckill-service-route
-              uri: lb://seckill-service
+              uri: ${TICKET_GATEWAY_SECKILL_SERVICE_URI:lb://seckill-service}
               predicates:
-                - Path=/api/v1/seckill/**
+                - Path=/api/v1/seckill/**,/api/v1/internal/order-create-tasks/**
             - id: order-service-route
-              uri: lb://order-service
+              uri: ${TICKET_GATEWAY_ORDER_SERVICE_URI:lb://order-service}
               predicates:
-                - Path=/api/v1/orders/**,/api/v1/internal/orders/**
+                - Path=/api/v1/orders/**,/api/v1/internal/orders/**,/api/v1/internal/order-result-tasks/**,/api/v1/internal/order-complete-tasks/**
             - id: payment-service-route
-              uri: lb://payment-service
+              uri: ${TICKET_GATEWAY_PAYMENT_SERVICE_URI:lb://payment-service}
               predicates:
-                - Path=/api/v1/payments/**,/api/v1/internal/payment-reconcile/**
+                - Path=/api/v1/payments/**,/api/v1/internal/payment-reconcile/**,/api/v1/internal/payment-result-tasks/**,/api/v1/internal/payment-reconciled-tasks/**
+            - id: job-service-route
+              uri: ${TICKET_GATEWAY_JOB_SERVICE_URI:lb://job-service}
+              predicates:
+                - Path=/api/v1/internal/reservation-records/**,/api/v1/internal/stock-release-tasks/**
     nacos:
       discovery:
         enabled: ${TICKET_NACOS_DISCOVERY_ENABLED:true}

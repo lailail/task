@@ -28,7 +28,7 @@ export default defineConfig({
     },
   },
   layout: {
-    locale: true,
+    locale: false,
     ...defaultSettings,
   },
   antd: {

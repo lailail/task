@@ -1,0 +1,44 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "Ticket Flash 抢票现场" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e7]:
+            - paragraph [ref=e8]: Ticket Flash
+            - paragraph [ref=e9]: 抢票现场
+        - navigation [ref=e10]:
+          - link "活动" [ref=e11] [cursor=pointer]:
+            - /url: /
+          - link "我的订单" [ref=e12] [cursor=pointer]:
+            - /url: /orders
+        - generic [ref=e13]:
+          - link "注册" [ref=e14] [cursor=pointer]:
+            - /url: /register
+          - link "登录" [ref=e15] [cursor=pointer]:
+            - /url: /login
+    - main [ref=e16]:
+      - generic [ref=e17]:
+        - paragraph [ref=e18]: Register / 注册
+        - heading "先拿到入场身份，再进入抢票主链路。" [level=1] [ref=e19]
+        - paragraph [ref=e20]: 第一轮注册页不引入复杂资料和多步骤流程，只围绕最小用户创建与后续登录展开。
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - text: 昵称
+          - textbox "昵称" [ref=e24]:
+            - /placeholder: 请输入展示昵称
+        - generic [ref=e25]:
+          - text: 用户名
+          - textbox "用户名" [ref=e26]:
+            - /placeholder: 建议使用 3 到 32 位用户名
+        - generic [ref=e27]:
+          - text: 密码
+          - textbox "密码" [ref=e28]:
+            - /placeholder: 不少于 8 位
+        - button "完成注册" [ref=e29]
+        - paragraph [ref=e30]:
+          - text: 已经有账号？
+          - link "去登录" [ref=e31] [cursor=pointer]:
+            - /url: /login
+  - button "Open Next.js Dev Tools" [ref=e37] [cursor=pointer]:
+    - img [ref=e38]
