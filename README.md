@@ -32,6 +32,7 @@
 - `gateway-service` 统一 JWT 验签与认证身份透传
 - `payment-service` 支付结果可靠消息补偿、支付对账异常内部查询
 - `ticket.payment.reconciled -> PAID/COMPLETED -> ticket.order.completed` 一致性终态链路
+- `frontend-admin` 后台管理端第一轮骨架与核心治理页面
 
 当前已具备的关键能力：
 
@@ -53,6 +54,40 @@
 - 支付收敛事件发送失败后的补偿任务登记、定时补发与发送状态收敛
 - 订单完成事件发送失败后的补偿任务登记、定时补发与发送状态收敛
 - 订单 `PAID -> COMPLETED` 一致性终态收口
+- 后台管理端登录、活动查询、订单状态单查、支付对账异常治理与观测入口
+
+## 前端管理端
+
+当前仓库已新增 `frontend-admin`，用于承接第一版后台管理端演示。
+
+当前已落地页面：
+
+- 登录页
+- 活动列表页
+- 活动详情页
+- 订单状态单查页
+- 支付对账异常列表页
+- 支付对账异常详情页
+- 支付对账异常人工治理入口
+- 观测入口页
+
+启动方式：
+
+```bash
+cd frontend-admin
+npm install
+npm test
+npm run build
+npm start
+```
+
+补充说明：
+
+- 当前 `frontend-admin` 基于 `Ant Design Pro v6 + Umi Max 4`
+- 当前开发代理已配置为 `/api -> http://localhost:8080`
+- 当前 `gateway-service` 已覆盖 `user-service`、`ticket-service`、`seckill-service`、`order-service`、`payment-service` 的第一版 HTTP 路由
+- 当前官方推荐 `Node >= 22`；本地在 `Node 20.19.6` 下已验证可安装、测试、构建和启动，但会出现 `EBADENGINE` 警告
+- 当前开发服务在本机实际启动于 `http://localhost:8001`，说明 `Umi` 会在默认端口被占用时自动选择下一个可用端口
 
 ## 本地基础设施
 

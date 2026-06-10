@@ -6,12 +6,12 @@ spring:
   cloud:
     nacos:
       discovery:
-        enabled: ${TICKET_NACOS_DISCOVERY_ENABLED:false}
+        enabled: ${TICKET_NACOS_DISCOVERY_ENABLED:true}
         server-addr: ${TICKET_NACOS_SERVER_ADDR:127.0.0.1:8848}
         namespace: ${TICKET_NACOS_NAMESPACE:public}
         group: ${TICKET_NACOS_GROUP:DEFAULT_GROUP}
       config:
-        enabled: ${TICKET_NACOS_CONFIG_ENABLED:false}
+        enabled: ${TICKET_NACOS_CONFIG_ENABLED:true}
         server-addr: ${TICKET_NACOS_SERVER_ADDR:127.0.0.1:8848}
         namespace: ${TICKET_NACOS_NAMESPACE:public}
         group: ${TICKET_NACOS_GROUP:DEFAULT_GROUP}
